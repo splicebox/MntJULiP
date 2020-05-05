@@ -34,9 +34,10 @@ git clone https://github.com/splicebox/MntJULiP.git
 
 #### System requirement
 * Linux or Mac  
-* Python 3.7  
+* Python 3.7 or later
 
-#### Required Python modules:
+#### Prerequisites:
+MntJULiP has the following dependencies:
 * [pystan](https://pystan.readthedocs.io/), a package for Bayesian inference using the No-U-Turn sampler, a variant of Hamiltonian Monte Carlo.
 * [numpy](www.numpy.org/), a fundamental package for scientific computing with Python  
 * [scipy](https://www.scipy.org/), a Python-based package for mathematics, science, and engineering.  
@@ -44,7 +45,7 @@ git clone https://github.com/splicebox/MntJULiP.git
 * [pandas](https://https://pandas.pydata.org/), Pandas is a fast, powerful, flexible and easy to use open source data analysis and manipulation tool.  
 * [dask](https://pypi.python.org/pypi/pathos), A Python package that provides advanced parallelism for analytics.  
 
-You can install those packages manually by pip3:
+The required packages may be installed from the [Python Package Index](https://pypi.org/) using pip pip3:
 ```
 pip3 install --user numpy scipy pandas pystan statsmodels dask[complete]
 ```
