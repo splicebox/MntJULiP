@@ -45,7 +45,7 @@ MntJULiP has the following dependencies:
 * [pandas](https://https://pandas.pydata.org/), Pandas is a fast, powerful, flexible and easy to use open source data analysis and manipulation tool.  
 * [dask](https://pypi.python.org/pypi/pathos), A Python package that provides advanced parallelism for analytics.  
 
-The required packages may be installed from the [Python Package Index](https://pypi.org/) using pip pip3:
+The required packages may be installed from the [Python Package Index](https://pypi.org/) using pip3:
 ```
 pip3 install --user numpy scipy pandas pystan statsmodels dask[complete]
 ```
