@@ -41,8 +41,8 @@ MntJULiP has the following dependencies:
 * [PyStan](https://pystan.readthedocs.io/), a package for for statistical modeling and high-performance statistical computation.  
 * [NumPy](https://numpy.org/), a fundamental package for scientific computing with Python.    
 * [SciPy](https://www.scipy.org/), a Python-based package for mathematics, science, and engineering.  
-* [statsmodels](https://www.statsmodels.org/), a Python module for the estimation of different statistical models, conducting statistical tests and data exploration.  
-* [pandas](https://pandas.pydata.org/), a fast, powerful, flexible and easy to use open source data analysis and manipulation tool.  
+* [Statsmodels](https://www.statsmodels.org/), a Python module for the estimation of different statistical models, conducting statistical tests and data exploration.  
+* [Pandas](https://pandas.pydata.org/), a fast, powerful, flexible and easy to use open source data analysis and manipulation tool.  
 * [Dask](https://dask.org/), a Python package that provides advanced parallelism for analytics.  
 
 The required packages may be installed from the [Python Package Index](https://pypi.org/) using pip3:
