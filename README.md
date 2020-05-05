@@ -38,12 +38,12 @@ git clone https://github.com/splicebox/MntJULiP.git
 
 #### Prerequisites:
 MntJULiP has the following dependencies:
-* [pystan](https://pystan.readthedocs.io/), a package for Bayesian inference using the No-U-Turn sampler, a variant of Hamiltonian Monte Carlo.
-* [numpy](www.numpy.org/), a fundamental package for scientific computing with Python  
+* [pystan](https://pystan.readthedocs.io/), a package for for statistical modeling and high-performance statistical computation.  
+* [numpy](https://numpy.org/), a fundamental package for scientific computing with Python.    
 * [scipy](https://www.scipy.org/), a Python-based package for mathematics, science, and engineering.  
-* [statsmodels](http://www.statsmodels.org/stable/index.html), a Python module for the estimation of different statistical models, conducting statistical tests and data exploration.  
+* [statsmodels](https://www.statsmodels.org/), a Python module for the estimation of different statistical models, conducting statistical tests and data exploration.  
 * [pandas](https://https://pandas.pydata.org/), Pandas is a fast, powerful, flexible and easy to use open source data analysis and manipulation tool.  
-* [dask](https://pypi.python.org/pypi/pathos), A Python package that provides advanced parallelism for analytics.  
+* [dask](https://dask.org/), A Python package that provides advanced parallelism for analytics.  
 
 The required packages may be installed from the [Python Package Index](https://pypi.org/) using pip3:
 ```
