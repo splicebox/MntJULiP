@@ -1,6 +1,6 @@
 ## MntJULiP ##
 
-MntJULiP is a program for comprehensive and accurate quantification of splicing differences from RNA-seq data. MntJULiP can detect changes in splicing ratios and in absolute splicing levels, and can find more differences than other tools. It characterizes splicing at the intron level, avoiding the need for pre-assembly, and can be used with or without a reference annotation.
+MntJULiP is a program for comprehensive and accurate quantification of splicing differences from RNA-seq data. MntJULiP can detect changes in splicing ratios and in absolute splicing levels. It characterizes splicing at the intron level, avoiding the need for pre-assembly, and can be used with or without a reference annotation.
 
 Copyright (C) 2019-2020, and GNU GPL v3.0, by Guangyu Yang, Liliana Florea
 
