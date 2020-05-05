@@ -77,13 +77,13 @@ Options:
 Here is an example to run MntJULiP with Gencode annotation.
 ```
 ref_file="gencode.v22.annotation.gtf"
-bam_list="path_to_bam_file_list"
+bam_list="bam_file_list.txt"
 python3 run.py --bam-file-list ${bam_list} \
                --anno-file ${ref_file} \
                --threads 10            
 ```
 
-The 'bam_file_list' is a .txt file with two columns separating by 'tab' or '\t'. Here is an example,
+The 'bam_file_list' is an .txt file with two columns separating by 'tab' or '\t'. Here is an example,
 ```
 sample   condition
 sample1.bam    control
