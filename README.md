@@ -38,12 +38,12 @@ git clone https://github.com/splicebox/MntJULiP.git
 
 #### Prerequisites:
 MntJULiP has the following dependencies:
-* [pystan](https://pystan.readthedocs.io/), a package for for statistical modeling and high-performance statistical computation.  
-* [numpy](https://numpy.org/), a fundamental package for scientific computing with Python.    
-* [scipy](https://www.scipy.org/), a Python-based package for mathematics, science, and engineering.  
+* [PyStan](https://pystan.readthedocs.io/), a package for for statistical modeling and high-performance statistical computation.  
+* [NumPy](https://numpy.org/), a fundamental package for scientific computing with Python.    
+* [SciPy](https://www.scipy.org/), a Python-based package for mathematics, science, and engineering.  
 * [statsmodels](https://www.statsmodels.org/), a Python module for the estimation of different statistical models, conducting statistical tests and data exploration.  
-* [pandas](https://https://pandas.pydata.org/), Pandas is a fast, powerful, flexible and easy to use open source data analysis and manipulation tool.  
-* [dask](https://dask.org/), A Python package that provides advanced parallelism for analytics.  
+* [pandas](https://pandas.pydata.org/), Pandas is a fast, powerful, flexible and easy to use open source data analysis and manipulation tool.  
+* [Dask](https://dask.org/), A Python package that provides advanced parallelism for analytics.  
 
 The required packages may be installed from the [Python Package Index](https://pypi.org/) using pip3:
 ```
