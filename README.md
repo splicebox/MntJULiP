@@ -78,7 +78,7 @@ Here is an example to run MntJULiP with Gencode annotation.
 ```
 ref_file="gencode.v22.annotation.gtf"
 bam_list="bam_file_list.txt"
-python3 run.py --bam-file-list ${bam_list} \
+python3 run.py --bam-list ${bam_list} \
                --anno-file ${ref_file} \
                --threads 10            
 ```
