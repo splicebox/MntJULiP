@@ -76,11 +76,11 @@ Options:
 
 Here is an example to run MntJULiP with Gencode annotation.
 ```
-ref_file="gencode.v22.annotation.gtf"
+anno_file="gencode.v22.annotation.gtf"
 bam_list="bam_file_list.txt"
 python3 run.py --bam-list ${bam_list} \
-               --anno-file ${ref_file} \
-               --num-threads 10            
+               --anno-file ${anno_file} \
+               --num-threads 8           
 ```
 
 The 'bam_file_list' is an .txt file with two columns separating by 'tab' or '\t'. Here is an example,
