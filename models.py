@@ -3,6 +3,7 @@ import os
 from collections import defaultdict
 from multiprocessing import Pool, TimeoutError
 import logging
+from pathlib import Path
 
 import pystan
 import numpy as np
@@ -122,8 +123,8 @@ def multiprocesses_run_NB_model(ys_list, conditions, count, model_dir, num_worke
 
 
 def batch_run_NB_model(ys, conditions, model_dir, count):
-    null_model = pickle.load(open(model_dir / 'null_NB_model.pkl', 'rb'))
-    alt_model = pickle.load(open(model_dir / 'alt_NB_model.pkl', 'rb'))
+    null_model = pickle.load(open(Path(model_dir) / 'null_NB_model.pkl', 'rb'))
+    alt_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.pkl', 'rb'))
     results = []
     for y in ys:
         results.append(run_NB_model(y, conditions, count, null_model, alt_model))
