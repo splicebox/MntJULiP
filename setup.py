@@ -52,7 +52,6 @@ setup(
     long_description=read('README.md'),
     include_package_data=True,
     packages=find_packages(),
-    description='DeepVariant',
     install_requires=dependencies,
     cmdclass={
         'clean': CleanCommand,
