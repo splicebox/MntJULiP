@@ -36,7 +36,7 @@ git clone https://github.com/splicebox/MntJULiP.git
 * Linux or Mac  
 * Python 3.7 or later
 
-#### Prerequisites:
+#### Prerequisites
 MntJULiP has the following dependencies:
 * [PyStan](https://pystan.readthedocs.io/), a package for for statistical modeling and high-performance statistical computation.  
 * [NumPy](https://numpy.org/), a fundamental package for scientific computing with Python.    
