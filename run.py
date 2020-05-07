@@ -87,7 +87,7 @@ def main():
                                                                          end_site_genes_dict, conditions, num_threads=num_threads)
         anno_info = (anno_intron_dict, start_site_genes_dict, end_site_genes_dict)
     else:
-        df = process_introns(out_data_dir, num_samples, num_threads=num_threads)
+        df, index_df = process_introns(out_data_dir, num_samples, num_threads=num_threads)
 
     logging.info(f'{df.shape[0]} candidate introns found.')
     df['label'] = pd.Series(np.zeros(df.shape[0]).astype(int), index=df.index)
