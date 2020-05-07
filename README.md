@@ -57,7 +57,7 @@ cd MntJULiP; python3 setup.py install
 
 ### <a name="usage"></a> Usage
 ```
-Usage: python run.py [options] --bam-file-list bam_file_list.txt
+Usage: python run.py [options] --bam-list bam_file_list.txt
 
 Options:
   -h, --help            show this help message and exit
