@@ -344,8 +344,8 @@ def multiprocesses_run_DM_model(ys_list, conditions, model_dir, num_workers):
 
 
 def batch_run_DM_model(ys, conditions, model_dir):
-    null_model = pickle.load(open(model_dir / 'null_DM_model.pkl', 'rb'))
-    alt_model = pickle.load(open(model_dir / 'alt_DM_model.pkl', 'rb'))
+    null_model = pickle.load(open(Path(model_dir) / 'null_DM_model.pkl', 'rb'))
+    alt_model = pickle.load(open(Path(model_dir) / 'alt_DM_model.pkl', 'rb'))
     results = []
     for y in ys:
         results.append(run_DM_model(y, conditions, null_model, alt_model))
