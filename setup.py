@@ -1,26 +1,22 @@
 """Setup script for DeepVarint."""
 import os
 from setuptools import setup, find_packages
-from distutils.command.clean import clean
-from distutils.command.install import install as DistutilsInstall
+from setuptools.command.install import install
 import subprocess
+import pip
 
 
-class MyInstall(DistutilsInstall):
+class MyInstall(install):
     def run(self):
-        import pip
-        pip.main(['install', '--user'] + dependencies)
+        if self.user:
+            pip.main(['install', '--user'] + dependencies)
+        else:
+            pip.main(['install'] + dependencies)
         subprocess.check_output(['cmake', '--version'])
         subprocess.check_call(['make'], cwd='./src')
         subprocess.check_call(['make', 'clean'], cwd='./src')
-        DistutilsInstall.run(self)
         subprocess.check_output(['python3', 'build_modules.py'])
-
-
-class CleanCommand(clean):
-    """Custom clean command to tidy up the project root."""
-    def run(self):
-        os.system('rm -vrf ./build ./dist ./*.pyc ./*.tgz ./*.egg-info')
+        install.run(self)
 
 
 def read(fname):
@@ -32,7 +28,7 @@ dependencies = ['numpy', 'scipy', 'pandas', 'pystan', 'statsmodels', 'dask[compl
 
 setup(
     name='mntjulip',
-    version='1.0',
+    version='1.1',
     author="Guangyu Yang & Liliana Florea",
     author_email="gyang22@jhu.edu",
     description = ("MntJULiP is a program for comprehensive and accurate quantification of splicing differences from RNA-seq data"),
@@ -44,7 +40,6 @@ setup(
     packages=find_packages(),
     # install_requires=dependencies,
     cmdclass={
-        'clean': CleanCommand,
-        'install': MyInstall
+        'install': MyInstall,
     }
 )
