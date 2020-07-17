@@ -1,29 +1,20 @@
 """Setup script for DeepVarint."""
 import os
-from pathlib import Path
 from setuptools import setup, find_packages
 from distutils.command.clean import clean
 from distutils.command.install import install as DistutilsInstall
 import subprocess
 
-from models import init_null_BN_model, init_alt_BN_model, init_null_DM_model, init_alt_DM_model
-
 
 class MyInstall(DistutilsInstall):
     def run(self):
+        import pip
+        pip.main(['install', '--user'] + dependencies)
         subprocess.check_output(['cmake', '--version'])
         subprocess.check_call(['make'], cwd='./src')
         subprocess.check_call(['make', 'clean'], cwd='./src')
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-
-        model_dir = Path(base_dir) / 'lib'
-        model_dir.mkdir(parents=True, exist_ok=True)
-        init_null_BN_model(model_dir)
-        init_alt_BN_model(model_dir)
-        init_null_DM_model(model_dir)
-        init_alt_DM_model(model_dir)
-
         DistutilsInstall.run(self)
+        subprocess.check_output(['python3', 'build_modules.py'])
 
 
 class CleanCommand(clean):
@@ -37,10 +28,10 @@ def read(fname):
 
 
 # required pkgs
-dependencies = ['numpy', 'scipy', 'pandas', 'pystan', 'statsmodels', 'dask[complete]', 'pysam']
+dependencies = ['numpy', 'scipy', 'pandas', 'pystan', 'statsmodels', 'dask[complete]']
 
 setup(
-    name='MntJULiP',
+    name='mntjulip',
     version='1.0',
     author="Guangyu Yang & Liliana Florea",
     author_email="gyang22@jhu.edu",
@@ -48,11 +39,10 @@ setup(
     license="GNU GPL v3.0",
     # keywords = "",
     url="github.com/splicebox/MntJULiP",
-    # packages=['mntjulip'],
     long_description=read('README.md'),
     include_package_data=True,
     packages=find_packages(),
-    install_requires=dependencies,
+    # install_requires=dependencies,
     cmdclass={
         'clean': CleanCommand,
         'install': MyInstall
