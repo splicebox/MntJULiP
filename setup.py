@@ -37,7 +37,7 @@ def read(fname):
 
 
 # required pkgs
-dependencies = ['numpy', 'scipy', 'pandas', 'pystan', 'statsmodels', 'dask[complete]']
+dependencies = ['numpy', 'scipy', 'pandas', 'pystan', 'statsmodels', 'dask[complete]', 'pysam']
 
 setup(
     name='MntJULiP',
