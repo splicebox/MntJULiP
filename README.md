@@ -54,6 +54,10 @@ Or run setup.py to install MntJULiP and all the required packages:
 ```
 cd MntJULiP; python3 setup.py install
 ```
+Add "--user --prefix=" option if you want to install MntJULiP locally or you don't have the administrative privileges:
+```
+cd MntJULiP; python3 setup.py install --user --prefix=
+```
 
 ### <a name="usage"></a> Usage
 ```
