@@ -4,8 +4,6 @@ from functools import reduce
 from collections import defaultdict
 import logging
 
-
-import pysam
 import numpy as np
 import pandas as pd
 from dask import delayed, compute
@@ -43,7 +41,7 @@ def generate_splice_data(out_dir, filename, bam_file, save_tmp):
         # command = f'bin/junc {bam_file} --nh 5'
         command = f'bin/junc {bam_file}'
         with gzip.open(splice_file, 'wb') as f:
-            f.write(subprocess.Popen(command, shell=True, stdout=subprocess.PIPE,
+            f.write(subprocess.Popen(command, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT).stdout.read())
 
 
@@ -52,14 +50,6 @@ def generate_splice_files(out_dir, bam_file_df, num_threads=4, save_tmp=True):
     for i, bam_file in enumerate(bam_file_df['sample']):
         delayed_results.append(delayed(generate_splice_data)(out_dir, f'sample_{i+1}', bam_file, save_tmp))
     _ = compute(*delayed_results, traverse=False, num_workers=num_threads)
-
-
-def get_total_read_counts(bam_file_df, num_threads=4):
-    total_read_counts = []
-    for bam_file in bam_file_df['sample']:
-        bam_obj = delayed(pysam.AlignmentFile)(bam_file, "rb")
-        total_read_counts.append(bam_obj.mapped)
-    return list(compute(*total_read_counts, traverse=False, num_workers=num_threads))
 
 
 def get_splice_site_groups(intron_coords):
@@ -257,16 +247,19 @@ def write_pred_intron_file(df, conditions, labels, pred_intron_dict, out_dir, an
             f.write('\t'.join(_list) + '\n')
 
 
-def write_diff_nb_intron_file(labels, diff_nb_intron_dict, out_dir, anno_info=None):
+def write_diff_nb_intron_file(labels, diff_nb_intron_dict, out_dir, anno_info=None, debug=False):
     file = out_dir / 'diff_introns.txt'
     _list = ['chrom', 'start', 'end', 'strand', 'gene_name', 'status', 'llr', 'p_value', 'q_value']
     for label in labels:
         _list.append(f"avg_read_counts({label})")
+    if debug:
+        for label in labels:
+            _list.append(f"variance({label})")
 
     with open(file, 'w') as f:
         f.write('\t'.join(_list) + '\n')
         for coord, value in diff_nb_intron_dict.items():
-            p_value, log_likelihood, mus, q_value = value
+            p_value, log_likelihood, mus, sigmas, q_value = value
             str_p_value = f"{p_value:.6g}" if p_value is not None else 'NA'
             str_q_value = f"{q_value:.6g}" if q_value is not None else 'NA'
             str_log_likelihood = f"{log_likelihood:.6g}" if log_likelihood is not None else 'NA'
@@ -275,6 +268,11 @@ def write_diff_nb_intron_file(labels, diff_nb_intron_dict, out_dir, anno_info=No
             _chr, strand, start, end = coord
             _list = [_chr, str(start), str(end), strand, gene_names, status, str_log_likelihood, str_p_value, str_q_value]
             _list += [f"{mu:.2f}" for mu in mus]
+            if debug:
+                if sigmas is not None:
+                    _list += [f"{sigma:.2f}" for sigma in sigmas]
+                else:
+                    _list += ["NA"] * len(labels)
             f.write('\t'.join(_list) + '\n')
 
 
