@@ -31,7 +31,7 @@ def get_conditions(file_df):
     return conditions.values, labels
 
 
-def generate_splice_data(out_dir, filename, bam_file, save_tmp):
+def generate_splice_data(work_dir, out_dir, filename, bam_file, save_tmp):
     splice_file = out_dir / f'{filename}.splice.gz'
     if save_tmp and splice_file.exists():
         return
@@ -39,16 +39,16 @@ def generate_splice_data(out_dir, filename, bam_file, save_tmp):
         if splice_file.exists():
             splice_file.unlink()
         # command = f'bin/junc {bam_file} --nh 5'
-        command = ['bin/junc', bam_file]
+        command = [f'{work_dir}/bin/junc', bam_file]
         with gzip.open(splice_file, 'wb') as f:
             f.write(subprocess.Popen(command, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT).stdout.read())
 
 
-def generate_splice_files(out_dir, bam_file_df, num_threads=4, save_tmp=True):
+def generate_splice_files(work_dir, out_dir, bam_file_df, num_threads=4, save_tmp=True):
     delayed_results = []
     for i, bam_file in enumerate(bam_file_df['sample']):
-        delayed_results.append(delayed(generate_splice_data)(out_dir, f'sample_{i+1}', bam_file, save_tmp))
+        delayed_results.append(delayed(generate_splice_data)(work_dir, out_dir, f'sample_{i+1}', bam_file, save_tmp))
     _ = compute(*delayed_results, traverse=False, num_workers=num_threads)
 
 

@@ -83,8 +83,9 @@ def main():
 
     if args.bam_list:
         file_list_df = get_bam_file_dataframe(args.bam_list)
+        work_dir = os.path.dirname(os.path.abspath(__file__))
         logging.info('Generating splice files (or reusing splice files if save-tmp set to true and splice files exist) ...')
-        generate_splice_files(out_data_dir, file_list_df, num_threads, save_tmp=save_tmp)
+        generate_splice_files(work_dir, out_data_dir, file_list_df, num_threads, save_tmp=save_tmp)
     elif args.splice_list:
         logging.info('Reading splice files ...')
         file_list_df = get_splice_file_dataframe(args.splice_list, out_data_dir)
