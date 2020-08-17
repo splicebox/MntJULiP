@@ -39,7 +39,7 @@ def generate_splice_data(out_dir, filename, bam_file, save_tmp):
         if splice_file.exists():
             splice_file.unlink()
         # command = f'bin/junc {bam_file} --nh 5'
-        command = f'bin/junc {bam_file}'
+        command = ['bin/junc', bam_file]
         with gzip.open(splice_file, 'wb') as f:
             f.write(subprocess.Popen(command, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT).stdout.read())
