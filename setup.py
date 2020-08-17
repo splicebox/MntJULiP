@@ -9,9 +9,14 @@ import pip
 class MyInstall(install):
     def run(self):
         if self.user:
-            pip.main(['install', '--user'] + dependencies)
+            pip.main(['install', '--user', '--no-cache-dir', 'dask[complete]'])
+            pip.main(['install', '--user', '--no-cache-dir', 'pystan'])
+            pip.main(['install', '--user', '--no-cache-dir', 'statsmodels'])
         else:
-            pip.main(['install'] + dependencies)
+            pip.main(['install', '--no-cache-dir', 'dask[complete]'])
+            pip.main(['install', '--no-cache-dir', 'pystan'])
+            pip.main(['install', '--no-cache-dir', 'statsmodels'])
+
         subprocess.check_output(['cmake', '--version'])
         subprocess.check_call(['make'], cwd='./src')
         subprocess.check_call(['make', 'clean'], cwd='./src')
@@ -22,9 +27,6 @@ class MyInstall(install):
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
-
-# required pkgs
-dependencies = ['numpy', 'scipy', 'pandas', 'pystan', 'statsmodels', 'dask[complete]']
 
 setup(
     name='mntjulip',
