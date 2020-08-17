@@ -3,20 +3,16 @@ import os
 from setuptools import setup, find_packages
 from setuptools.command.install import install
 import subprocess
-import pip
+import sys
 
 
 class MyInstall(install):
     def run(self):
+        dependencies = ['numpy', 'scipy', 'pandas', 'statsmodels', 'dask[complete]', 'pystan']
         if self.user:
-            pip.main(['install', '--user', '--no-cache-dir', 'dask[complete]'])
-            pip.main(['install', '--user', '--no-cache-dir', 'pystan'])
-            pip.main(['install', '--user', '--no-cache-dir', 'statsmodels'])
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "--user", "--no-cache-dir"] + dependencies)
         else:
-            pip.main(['install', '--no-cache-dir', 'dask[complete]'])
-            pip.main(['install', '--no-cache-dir', 'pystan'])
-            pip.main(['install', '--no-cache-dir', 'statsmodels'])
-
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir"] + dependencies)
         subprocess.check_output(['cmake', '--version'])
         subprocess.check_call(['make'], cwd='./src')
         subprocess.check_call(['make', 'clean'], cwd='./src')
