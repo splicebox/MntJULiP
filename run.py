@@ -10,7 +10,15 @@ import shutil
 logging.basicConfig(format='mnt-JULiP: %(asctime)s: %(message)s', datefmt='%d-%b-%y %H:%M:%S')
 logging.getLogger().setLevel(logging.INFO)
 
-from utils import *
+
+import pandas as pd
+import numpy as np
+
+from utils import get_bam_file_dataframe, get_conditions
+from utils import generate_splice_files, get_splice_file_dataframe
+from utils import process_annotation, process_introns_with_annotation
+from utils import process_introns
+from utils import write_pred_intron_file, write_diff_nb_intron_file, write_diff_dm_intron_file, write_diff_dm_group_file
 from models import NB_model, DM_model
 
 
@@ -29,6 +37,10 @@ def get_arguments():
     parser.add_argument('--batch-size', type=int, default=1000,
                         help='size of batch of intron/groups feed to the models for each process (default: 1000).')
     parser.add_argument('--error-rate', type=float, default=0.05, help='family-wise error rate for FDR (default: 0.05).')
+    parser.add_argument('--group-filter', type=float, default=1., help='minimum read counts required for group in at least one sample (default: 1).')
+    parser.add_argument('--debug', action='store_true', default=False, help='Debug mode for showing more information.')
+    parser.add_argument('--aggressive-mode', action='store_true', default=False,
+                        help='set MnutJULiP to aggressive mode for highly dispersed data (e.g. cancer data)')
     parser.add_argument('--method', type=str, default='fdr_bh',
                         help='''
     method used for testing and adjustment of p-values (default: 'fdr_bh')
@@ -42,7 +54,7 @@ def get_arguments():
     - `fdr_by` : Benjamini/Yekutieli (negative)
     - `fdr_tsbh` : two stage fdr correction (non-negative)
     - `fdr_tsbky` : two stage fdr correction (non-negative)
-            ''')
+    ''')
 
     if len(sys.argv) < 2:
         parser.print_help(sys.stderr)
@@ -65,6 +77,9 @@ def main():
     anno_file = args.anno_file
     count = args.min_count
     batch_size = args.batch_size
+    debug = args.debug
+    group_filter = args.group_filter
+    aggressive_mode = args.aggressive_mode
 
     if args.bam_list:
         file_list_df = get_bam_file_dataframe(args.bam_list)
@@ -99,19 +114,20 @@ def main():
     start_time = time.time()
     diff_nb_intron_dict, pred_intron_dict = NB_model(df, conditions, model_dir,
                                              num_workers=num_threads, count=count, error_rate=error_rate,
-                                             method=method, batch_size=batch_size)
+                                             method=method, batch_size=batch_size, aggressive_mode=aggressive_mode)
     logging.info(f'Finished! Took {time.time() - start_time:0.2f} seconds.')
 
     logging.info('Fitting Dirichlet Multinomial models ...')
     start_time = time.time()
     diff_dm_intron_dict, diff_dm_group_dict = DM_model(df, index_df, conditions, model_dir,
                                                         num_workers=num_threads, error_rate=error_rate,
-                                                        method=method, batch_size=batch_size)
+                                                        method=method, batch_size=batch_size, group_filter=group_filter,
+                                                        aggressive_mode=aggressive_mode)
     logging.info(f'Finished! Took {time.time() - start_time:0.2f} seconds.')
 
     logging.info('Writing results ...')
     write_pred_intron_file(df, conditions, labels, pred_intron_dict, out_dir, anno_info)
-    write_diff_nb_intron_file(labels, diff_nb_intron_dict, out_dir, anno_info)
+    write_diff_nb_intron_file(labels, diff_nb_intron_dict, out_dir, anno_info, debug=debug)
     write_diff_dm_intron_file(labels, diff_dm_intron_dict, out_dir, anno_info)
     write_diff_dm_group_file(diff_dm_group_dict, out_dir, anno_info)
 

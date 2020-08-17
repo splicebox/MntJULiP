@@ -1,7 +1,6 @@
 import pickle
 import os
 from collections import defaultdict
-from multiprocessing import Pool, TimeoutError
 import logging
 from pathlib import Path
 
@@ -10,8 +9,6 @@ import numpy as np
 from dask import delayed, compute
 from scipy.stats import chi2
 from statsmodels.stats import multitest
-
-from utils import *
 
 
 # class/method to suppress pystan outputs
@@ -41,7 +38,7 @@ def nb_add_q_values(diff_intron_dict, error_rate, method):
     indices = {}
     index = 0
     q_values = []
-    for i, (p_value, _, _) in enumerate(diff_intron_dict.values()):
+    for i, (p_value, _, _, _) in enumerate(diff_intron_dict.values()):
         q_values.append(None)
         if p_value is None:
             continue
@@ -60,7 +57,8 @@ def nb_add_q_values(diff_intron_dict, error_rate, method):
 
 ###############################################################################
 ## Zero inflated Negative Binomial model
-def NB_model(df, conditions, model_dir, num_workers=4, count=5, error_rate=0.05, method='fdr_bh', batch_size=500):
+def NB_model(df, conditions, model_dir, num_workers=4, count=5, error_rate=0.05,
+             method='fdr_bh', batch_size=500, aggressive_mode=False):
     diff_intron_dict = {}
     pred_intron_dict = {}
     coords_batches = []
@@ -68,32 +66,28 @@ def NB_model(df, conditions, model_dir, num_workers=4, count=5, error_rate=0.05,
 
     ys = []
     coords = []
-    # ys_list = []
     for i, row in enumerate(df.itertuples()):
         row_list = list(row)
         coord = row_list[0]
         ys.append(np.array(row_list[1:-1], dtype=np.int))
         coords.append(coord)
         if i > 0 and i % batch_size == 0:
-            delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, model_dir, count))
-            # ys_list.append(ys)
+            delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, model_dir, count, aggressive_mode))
             coords_batches.append(coords)
             coords = []
             ys = []
 
     if len(ys) > 0:
-        delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, model_dir, count))
-        # ys_list.append(ys)
+        delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, model_dir, count, aggressive_mode))
         coords_batches.append(coords)
 
     results_batches = list(compute(*delayed_results, traverse=False, num_workers=num_workers, scheduler="processes"))
-    # results_batches = multiprocesses_run_NB_model(ys_list, conditions, count, model_dir, num_workers)
 
     sig_coords = []
     for coords, results in zip(coords_batches, results_batches):
         for coord, result in zip(coords, results):
-            p_value, log_likelihood, mus = result
-            diff_intron_dict[coord] = [p_value, log_likelihood, mus]
+            p_value, log_likelihood, mus, sigmas = result
+            diff_intron_dict[coord] = [p_value, log_likelihood, mus, sigmas]
             pred_intron_dict[coord] = 'LO_DATA'
             if p_value is not None and np.any(mus >= 1):
                 sig_coords.append(coord)
@@ -107,50 +101,53 @@ def NB_model(df, conditions, model_dir, num_workers=4, count=5, error_rate=0.05,
     return diff_intron_dict, pred_intron_dict
 
 
-def multiprocesses_run_NB_model(ys_list, conditions, count, model_dir, num_workers):
-    results = []
-    pool = Pool(processes=num_workers)
-    workers = []
-    for ys in ys_list:
-        workers.append(pool.apply_async(batch_run_NB_model, (ys, conditions, model_dir, count)))
-
-    for worker in workers:
-        results.append(worker.get())
-    pool.close()
-    pool.terminate()
-    pool.join()
-    return results
-
-
-def batch_run_NB_model(ys, conditions, model_dir, count):
+def batch_run_NB_model(ys, conditions, model_dir, count, aggressive_mode):
     null_model = pickle.load(open(Path(model_dir) / 'null_NB_model.pkl', 'rb'))
     alt_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.pkl', 'rb'))
     results = []
     for y in ys:
-        results.append(run_NB_model(y, conditions, count, null_model, alt_model))
+        results.append(run_NB_model(y, conditions, count, null_model, alt_model, aggressive_mode))
     return results
 
 
-def run_NB_model(y, conditions, count, null_model, alt_model):
+def custom_mean(y, aggressive_mode):
+    if aggressive_mode:
+        return np.mean(y)
+    else:
+        return np.median(y)
+
+
+def custom_count(quantiles, means, aggressive_mode):
+    if aggressive_mode:
+        return max(quantiles)
+    else:
+        return max(means)
+
+
+def run_NB_model(y, conditions, count, null_model, alt_model, aggressive_mode):
     N = y.shape[0]
     z = conditions
     K = z.shape[1]
     # init null model
-    mu_raw = np.mean(y)
-    null_data_dict = {'N': N, 'y': y, 'mu_raw': np.median(y)}
+    null_data_dict = {'N': N, 'y': y, 'mu_raw': custom_mean(y, aggressive_mode)}
     # init alternative model
     mu_raw = []
     means = []
     _vars = []
+    quantiles = []
     for k in range(K):
         indices = np.where(z[:, k] > 0)[0]
-        mu_raw.append(np.median(np.take(y, indices)))
-        means.append(np.mean(np.take(y, indices)))
-        _vars.append(np.var(np.take(y, indices)))
+        array = np.take(y, indices)
+        mu_raw.append(custom_mean(array, aggressive_mode))
+        means.append(np.mean(array))
+        num = 0.9 if indices.shape[0] >= 30 else 0.
+        quantiles.append(np.quantile(array, num))
+        _vars.append(np.var(array))
 
+    _count = custom_count(quantiles, means, aggressive_mode)
     values = np.array(means) - np.array(_vars)
-    if max(means) <= count and np.any(values < 0):
-        return None, None, np.array(means)
+    if _count <= count and np.any(values < 0):
+        return None, None, np.array(means), np.array(_vars)
 
     alt_data_dict = {'N': N, 'K': K, 'y': y, 'z': z, 'mu_raw': mu_raw}
     with suppress_stdout_stderr():
@@ -165,12 +162,14 @@ def run_NB_model(y, conditions, count, null_model, alt_model):
             break
 
     if i == 10:
-        return None, None, np.array(means)
+        return None, None, np.array(means), None
     else:
         log_likelihood = fit_alt['value'] - fit_null['value']
         mus = fit_alt['par']['mu']
+        reciprocal_phi = fit_alt['par']['reciprocal_phi']
+        sigmas = mus + mus * mus * reciprocal_phi
         p_value = 1 - chi2(3 * (K - 1)).cdf(2 * log_likelihood)
-    return p_value, log_likelihood, mus
+    return p_value, log_likelihood, mus, sigmas
 
 
 def init_null_BN_model(model_dir):
@@ -183,29 +182,28 @@ def init_null_BN_model(model_dir):
     parameters {
         real<lower=0, upper=1> theta;
         real<lower=0> mu;
-        real<lower=1e-4> inverted_phi;
+        real<lower=1e-4> reciprocal_phi;
     }
     model {
         mu ~ normal(mu_raw, sqrt(mu_raw/10)+1e-4);
-        inverted_phi ~ cauchy(1e-2, 5);
+        reciprocal_phi ~ cauchy(0., 5);
         for (n in 1:N) {
             if (y[n] == 0){
                 target += log_sum_exp(bernoulli_lpmf(1 | theta),
                                          bernoulli_lpmf(0 | theta)
-                                         + neg_binomial_2_lpmf(y[n] | mu+1e-4, 1./inverted_phi));
+                                         + neg_binomial_2_lpmf(y[n] | mu+1e-4, 1./reciprocal_phi));
             }
             else{
-                target += bernoulli_lpmf(0 | theta) + neg_binomial_2_lpmf(y[n] | mu+1e-4, 1./inverted_phi);
+                target += bernoulli_lpmf(0 | theta) + neg_binomial_2_lpmf(y[n] | mu+1e-4, 1./reciprocal_phi);
             }
         }
     }
     """
     file = model_dir / 'null_NB_model.pkl'
-    if not file.exists():
-        extra_compile_args = ['-pthread', '-DSTAN_THREADS']
-        model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
-        with open(file, 'wb') as f:
-            pickle.dump(model, f)
+    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
+    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
+    with open(file, 'wb') as f:
+        pickle.dump(model, f)
 
 
 def init_alt_BN_model(model_dir):
@@ -220,24 +218,24 @@ def init_alt_BN_model(model_dir):
     parameters {
         real<lower=0, upper=1> theta[K];
         vector<lower=0>[K] mu;
-        vector<lower=1e-4>[K] inverted_phi;
+        vector<lower=1e-4>[K] reciprocal_phi;
     }
     model {
         mu ~ normal(mu_raw, sqrt(mu_raw/10)+1e-4);
-        inverted_phi ~ cauchy(1e-2, 5);
+        reciprocal_phi ~ cauchy(0., 5);
         for (n in 1:N) {
             vector[K] lps;
             if (y[n] == 0){
                 for (k in 1:K){
                     lps[k] = log_sum_exp(bernoulli_lpmf(1 | theta[k]),
                                          bernoulli_lpmf(0 | theta[k])
-                                         + neg_binomial_2_lpmf(y[n] | mu[k]+1e-4, 1./inverted_phi[k]));
+                                         + neg_binomial_2_lpmf(y[n] | mu[k]+1e-4, 1./reciprocal_phi[k]));
                     lps[k] *= z[n][k];
                 }
             }
             else{
                 for (k in 1:K) {
-                    lps[k] = bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu[k]+1e-4, 1./inverted_phi[k]);
+                    lps[k] = bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu[k]+1e-4, 1./reciprocal_phi[k]);
                     lps[k] *= z[n][k];
                 }
             }
@@ -246,11 +244,10 @@ def init_alt_BN_model(model_dir):
     }
     """
     file = model_dir / 'alt_NB_model.pkl'
-    if not file.exists():
-        extra_compile_args = ['-pthread', '-DSTAN_THREADS']
-        model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
-        with open(file, 'wb') as f:
-            pickle.dump(model, f)
+    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
+    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
+    with open(file, 'wb') as f:
+        pickle.dump(model, f)
 
 
 ###############################################################################
@@ -265,9 +262,18 @@ def dm_add_q_values(diff_dm_group_dict, error_rate, method):
     return diff_dm_group_dict
 
 
+def get_splice_site_groups(intron_coords):
+    group_dict = defaultdict(list)
+    for _chr, strand, i_start, i_end in intron_coords:
+        group_dict[(i_start, 'i')].append((_chr, strand, i_start, i_end))
+        group_dict[(i_end, 'o')].append((_chr, strand, i_start, i_end))
+
+    return group_dict
+
+
 ## Dirichlet Multinomial model
-def DM_model(df, index_df, conditions, model_dir, num_workers=4,
-            error_rate=0.05, method='fdr_bh', batch_size=1000):
+def DM_model(df, index_df, conditions, model_dir, num_workers=4, error_rate=0.05,
+            method='fdr_bh', batch_size=1000, group_filter=0, aggressive_mode=False):
     _df = df[df['label'] == 1].drop(['label'], axis=1)
     diff_dm_intron_dict = defaultdict(list)
     groups = []
@@ -285,34 +291,32 @@ def DM_model(df, index_df, conditions, model_dir, num_workers=4,
     ys = []
     groups = []
     coords = []
-    # ys_list = []
     for _chr in chrs:
         strands = list(_index_df.loc[_chr].index.unique(level='strand'))
         for strand in strands:
             group_dict = get_splice_site_groups(_index_df.loc[_chr].loc[strand]['index'].tolist())
             for group, intron_coords in group_dict.items():
                 if len(intron_coords) > 1:
-                    ys.append(_df.loc[intron_coords].values.T.astype(int))
-                    groups.append((f"g{i+1:06d}", (_chr, strand, group[0], group[1])))
-                    coords.append(intron_coords)
-                    if i > 0 and i % batch_size == 0:
-                        delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, model_dir))
-                        # ys_list.append(ys)
-                        groups_batches.append(groups)
-                        coords_batches.append(coords)
-                        groups = []
-                        coords = []
-                        ys = []
-                    i += 1
+                    group_df = _df.loc[intron_coords]
+                    if any(group_df.sum(axis=0) >= group_filter):
+                        ys.append(group_df.values.T.astype(int))
+                        groups.append((f"g{i+1:06d}", (_chr, strand, group[0], group[1])))
+                        coords.append(intron_coords)
+                        if i > 0 and i % batch_size == 0:
+                            delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, model_dir, aggressive_mode))
+                            groups_batches.append(groups)
+                            coords_batches.append(coords)
+                            groups = []
+                            coords = []
+                            ys = []
+                        i += 1
 
     if len(ys) > 0:
-        delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, model_dir))
-        # ys_list.append(ys)
+        delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, model_dir, aggressive_mode))
         groups_batches.append(groups)
         coords_batches.append(coords)
 
     results_batches = list(compute(*delayed_results, traverse=False, num_workers=num_workers, scheduler="processes"))
-    # results_batches = multiprocesses_run_DM_model(ys_list, conditions, model_dir, num_workers)
 
     diff_dm_group_dict = {}
     for groups, results, coords_list in zip(groups_batches, results_batches, coords_batches):
@@ -328,41 +332,30 @@ def DM_model(df, index_df, conditions, model_dir, num_workers=4,
     return diff_dm_intron_dict, diff_dm_group_dict
 
 
-def multiprocesses_run_DM_model(ys_list, conditions, model_dir, num_workers):
-    results = []
-    pool = Pool(processes=num_workers)
-    workers = []
-    for ys in ys_list:
-        workers.append(pool.apply_async(batch_run_DM_model, (ys, conditions, model_dir)))
-
-    for worker in workers:
-        results.append(worker.get())
-    pool.close()
-    pool.terminate()
-    pool.join()
-    return results
-
-
-def batch_run_DM_model(ys, conditions, model_dir):
+def batch_run_DM_model(ys, conditions, model_dir, aggressive_mode):
     null_model = pickle.load(open(Path(model_dir) / 'null_DM_model.pkl', 'rb'))
     alt_model = pickle.load(open(Path(model_dir) / 'alt_DM_model.pkl', 'rb'))
     results = []
     for y in ys:
-        results.append(run_DM_model(y, conditions, null_model, alt_model))
+        results.append(run_DM_model(y, conditions, null_model, alt_model, aggressive_mode))
 
     return results
 
 
-def run_DM_model(y, conditions, null_model, alt_model):
+def run_DM_model(y, conditions, null_model, alt_model, aggressive_mode):
     N, M = y.shape
     z = conditions
     K = z.shape[1]
+    conc_raw, conc_std = 0, 1000
+    if aggressive_mode:
+        conc = np.sum(np.mean(y, axis=0))
+        conc_raw, conc_std = conc, np.sqrt(conc/10) + 1e-4
 
     # init null model
-    null_data_dict = {'N': N, 'M': M, 'y': y}
+    null_data_dict = {'N': N, 'M': M, 'y': y, 'conc_mu':conc_raw, 'conc_std': conc_std}
 
     # init alternative model
-    alt_data_dict = {'N': N, 'M': M, 'K': K, 'y': y, 'z': z}
+    alt_data_dict = {'N': N, 'M': M, 'K': K, 'y': y, 'z': z, 'conc_mu':conc_raw, 'conc_std': conc_std}
 
     with suppress_stdout_stderr():
         i = 0
@@ -397,24 +390,25 @@ def init_null_DM_model(model_dir):
         int<lower=1> N;
         int<lower=1> M;
         int<lower=0> y[N, M];
+        real<lower=0> conc_mu;
+        real<lower=0> conc_std;
     }
     parameters {
         simplex[M] alpha;
         real<lower=0> conc;
     }
     model {
-        conc ~ normal(0, 1e6);
+        conc ~ normal(conc_mu, conc_std);
         for (n in 1:N) {
             target += dirichlet_multinomial_lpmf(y[n] | conc * alpha);
         }
     }
     """
     file = model_dir / 'null_DM_model.pkl'
-    if not file.exists():
-        extra_compile_args = ['-pthread', '-DSTAN_THREADS']
-        model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
-        with open(file, 'wb') as f:
-            pickle.dump(model, f)
+    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
+    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
+    with open(file, 'wb') as f:
+        pickle.dump(model, f)
 
 
 def init_alt_DM_model(model_dir):
@@ -432,13 +426,15 @@ def init_alt_DM_model(model_dir):
         int<lower=1> K;
         int<lower=0> y[N, M];
         int<lower=0> z[N, K];
+        real<lower=0> conc_mu;
+        real<lower=0> conc_std;
     }
     parameters {
         simplex[M] alpha[K];
         real<lower=0> conc;
     }
     model {
-        conc ~ normal(0, 1e6);
+        conc ~ normal(conc_mu, conc_std);
         for (n in 1:N) {
             vector[K] lps;
             for (k in 1:K){
@@ -450,9 +446,7 @@ def init_alt_DM_model(model_dir):
     }
     """
     file = model_dir / 'alt_DM_model.pkl'
-    if not file.exists():
-        extra_compile_args = ['-pthread', '-DSTAN_THREADS']
-        model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
-        with open(file, 'wb') as f:
-            pickle.dump(model, f)
-
+    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
+    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
+    with open(file, 'wb') as f:
+        pickle.dump(model, f)

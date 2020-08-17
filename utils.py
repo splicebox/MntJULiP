@@ -52,28 +52,27 @@ def generate_splice_files(out_dir, bam_file_df, num_threads=4, save_tmp=True):
     _ = compute(*delayed_results, traverse=False, num_workers=num_threads)
 
 
-def get_splice_site_groups(intron_coords):
-    group_dict = defaultdict(list)
-    for _chr, strand, i_start, i_end in intron_coords:
-        group_dict[(i_start, 'i')].append((_chr, strand, i_start, i_end))
-        group_dict[(i_end, 'o')].append((_chr, strand, i_start, i_end))
-
-    return group_dict
-
-
 def process_introns(data_dir, num_samples, num_threads=4):
     def chunks(l, n):
         """Yield successive n-sized chunks from l."""
         for i in range(0, len(l), n):
             yield l[i:i + n]
 
-    columns = ["chromosome", "start", "end", "count", "strand"]
     dfs = []
     for i in range(num_samples):
-        filename = data_dir / f'sample_{i+1}.splice.gz'
         columns = ["chromosome", "start", "end", f"{i+1}_count", "strand"]
-        dfs.append(dd.read_csv(filename, sep=' ', blocksize=None,
-                    names=columns, usecols=[0, 1, 2, 3, 4], compression='gzip'))
+        if os.path.exists(data_dir / f'sample_{i+1}.splice.gz'):
+            filename = data_dir / f'sample_{i+1}.splice.gz'
+            _df = dd.read_csv(filename, sep=' ', blocksize=None,
+                        names=columns, usecols=[0, 1, 2, 3, 4], compression='gzip')
+        elif os.path.exists(data_dir / f'sample_{i+1}.splice'):
+            filename = data_dir / f'sample_{i+1}.splice'
+            _df = dd.read_csv(filename, sep=' ', blocksize=None,
+                        names=columns, usecols=[0, 1, 2, 3, 4])
+        else:
+            raise Exception("Splice file doesn't exist!")
+
+        dfs.append(_df)
 
     while len(dfs) > 1:
         _list = []
@@ -368,7 +367,7 @@ def process_annotation(gtf_file):
     end_site_genes_dict = defaultdict(set)
     with open(gtf_file, 'r') as f:
         for line in f:
-            if line is not '\n' and not(line.startswith('#')):
+            if line != '\n' and not(line.startswith('#')):
                 items = line.strip().split('\t')
                 if items[2] == 'exon':
                     _chr, strand = items[0], items[6]
