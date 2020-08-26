@@ -58,7 +58,10 @@ Add "--user" option if you want to install MntJULiP locally or you don't have th
 ```
 cd MntJULiP; python3 setup.py install --user
 ```
-
+If you encounter "error: can't combine user with prefix, exec_prefix/home, or install_(plat)base", try:
+```
+python3 setup.py install --user --prefix=
+```
 ### <a name="usage"></a> Usage
 ```
 Usage: python run.py [options] --bam-list bam_file_list.txt
