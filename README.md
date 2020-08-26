@@ -54,7 +54,7 @@ Or run setup.py to install MntJULiP and all the required packages:
 ```
 cd MntJULiP; python3 setup.py install
 ```
-Add "--user" option if you want to install MntJULiP locally or you don't have the administrative privileges:
+Add "--user" option if you don't have the root/administrative privileges:
 ```
 cd MntJULiP; python3 setup.py install --user
 ```
