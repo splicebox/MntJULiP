@@ -112,7 +112,7 @@ sample   condition
 sample1.splice    control
 sample2.splice    case
 ```
-The .splice file is a space or ' ' seperated file with at least 5 columns "chrom start end count strand"
+The .splice file is a space or ' ' seperated file with at least 5 columns "chrom start end count strand" (header is excluded),
 ```
 chr1 1311924 1312018 100 -
 ```
