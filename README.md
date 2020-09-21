@@ -35,6 +35,7 @@ git clone https://github.com/splicebox/MntJULiP.git
 #### System requirements
 * Linux or Mac  
 * Python 3.7 or later
+* gcc/6.4.0 or later
 
 #### Prerequisites
 MntJULiP has the following dependencies:
