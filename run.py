@@ -5,6 +5,7 @@ import time
 import os
 import sys
 import shutil
+import textwrap
 
 
 logging.basicConfig(format='mnt-JULiP: %(asctime)s: %(message)s', datefmt='%d-%b-%y %H:%M:%S')
@@ -23,14 +24,15 @@ from models import NB_model, DM_model
 
 
 def get_arguments():
-    parser = argparse.ArgumentParser()
-
+    version = 'MntJULiP v1.1.0'
+    parser = argparse.ArgumentParser(description=version, formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('--version', action='version', version=version)
     parser.add_argument('--bam-list', type=str, help='a text file that contains the list of the BAM file paths and sample conditions.')
     parser.add_argument('--splice-list', type=str, help='a text file that contains the list of the SPLICE file paths and sample conditions.')
     parser.add_argument('--anno-file', type=str, default='', help='annotation file in GTF format.')
     parser.add_argument('--no-save-tmp', action='store_false', default=True,
-                        help='By default the splice files are saved in order to save time when rerun the program on the same dataset.')
-    parser.add_argument('--out-dir', type=str, default='./out', help='output folder to store the results and temporary files. (default: ./out))')
+                        help='by default the splice files are saved in order to save time when rerun the program on the same dataset.')
+    parser.add_argument('--out-dir', type=str, default='./out', help='output folder to store the results and temporary files. (default: ./out)')
     parser.add_argument('--num-threads', type=int, default=4, help='number of CPU cores use to run the program. (default: 4)')
     parser.add_argument('--min-count', type=int, default=5,
                         help='average intron read count for all conditions that less than this value will be considered as low data and will be skipped (default: 5).')
@@ -42,7 +44,7 @@ def get_arguments():
     parser.add_argument('--aggressive-mode', action='store_true', default=False,
                         help='set MnutJULiP to aggressive mode for highly dispersed data (e.g. cancer data)')
     parser.add_argument('--method', type=str, default='fdr_bh',
-                        help='''
+                        help=textwrap.dedent('''\
     method used for testing and adjustment of p-values (default: 'fdr_bh')
     - `bonferroni` : one-step correction
     - `sidak` : one-step correction
@@ -54,7 +56,7 @@ def get_arguments():
     - `fdr_by` : Benjamini/Yekutieli (negative)
     - `fdr_tsbh` : two stage fdr correction (non-negative)
     - `fdr_tsbky` : two stage fdr correction (non-negative)
-    ''')
+    '''))
 
     if len(sys.argv) < 2:
         parser.print_help(sys.stderr)
