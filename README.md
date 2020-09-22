@@ -82,7 +82,7 @@ optional arguments:
   --num-threads NUM_THREADS
                         number of CPU cores use to run the program. (default: 4)
   -v, --version         show program's version number and exit
-  -h, --help            Show this help message and exit.
+  -h, --help            show this help message and exit.
 ```
 
 Here is an example on how to run MntJULiP with the alignment files and the GENCODE annotation:
