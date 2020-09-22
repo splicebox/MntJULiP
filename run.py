@@ -37,7 +37,7 @@ def get_arguments():
     optional_args.add_argument('--out-dir', type=str, default='./out', help='output folder to store the results and temporary files. (default: ./out)')
     optional_args.add_argument('--num-threads', type=int, default=4, help='number of CPU cores use to run the program. (default: 4)')
     optional_args.add_argument('-v', '--version', action='version', version=version)
-    optional_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show this help message and exit.')
+    optional_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='show this help message and exit.')
 
 
     advanced_args = parser.add_argument_group('advanced arguments')
