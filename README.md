@@ -51,7 +51,7 @@ The required packages can be installed from the [Python Package Index](https://p
 pip3 install --user numpy scipy pandas pystan statsmodels "dask[complete]"
 ```
 
-Alternatively, run setup.py to install MntJULiP and all the required packages:
+Alternatively, run setup.py to install MntJULiP and all the required packages; make sure you have the correct versions of Python and gcc in your path. 
 ```
 cd MntJULiP; python setup.py install
 ```
