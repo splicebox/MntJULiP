@@ -53,15 +53,15 @@ pip3 install --user numpy scipy pandas pystan statsmodels "dask[complete]"
 
 Alternatively, run setup.py to install MntJULiP and all the required packages:
 ```
-cd MntJULiP; python3 setup.py install
+cd MntJULiP; python setup.py install
 ```
 Add "--user" option if you do not have the root/administrative privileges:
 ```
-cd MntJULiP; python3 setup.py install --user
+cd MntJULiP; python setup.py install --user
 ```
 If you encounter "error: can't combine user with prefix, exec_prefix/home, or install_(plat)base", try:
 ```
-python3 setup.py install --user --prefix=
+python setup.py install --user --prefix=
 ```
 
 ### <a name="usage"></a> Usage
@@ -89,7 +89,7 @@ Here is an example on how to run MntJULiP with the alignment files and the GENCO
 ```
 ANNO_FILE="gencode.v22.annotation.gtf"
 BAM_LIST="bam_file_list.txt"
-python3 run.py --bam-list ${BAM_LIST} \
+python run.py --bam-list ${BAM_LIST} \
                --anno-file ${ANNO_FILE} \
                --num-threads 8           
 ```
@@ -107,7 +107,7 @@ Here is an example on how to run MntJULiP with the GENCODE annotation and the sp
 ```
 SPLICE_LIST="splice_file_list.txt"
 ANNO_FILE="gencode.v22.annotation.gtf"
-python3 run.py --splice-list ${SPLICE_LIST} \
+python run.py --splice-list ${SPLICE_LIST} \
                --anno-file ${ANNO_FILE} \
                --num-threads 8 
 ```
