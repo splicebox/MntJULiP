@@ -18,10 +18,11 @@ def get_bam_file_dataframe(list_file):
 
 def get_splice_file_dataframe(list_file, data_dir):
     splice_file_df = pd.read_csv(list_file, sep='\t')
+    for file in os.listdir(data_dir):
+        if file.endswith(".splice") or file.endswith(".splice.gz"):
+            os.remove(data_dir / file)
     for i, file in enumerate(splice_file_df['sample']):
-        dst_file = f"{data_dir}/sample_{i+1}.splice"
-        if not os.path.exists(dst_file):
-            os.symlink(file, dst_file)
+        os.symlink(file, f"{data_dir}/sample_{i+1}.splice")
     return splice_file_df
 
 
@@ -72,6 +73,8 @@ def process_introns(data_dir, num_samples, num_threads=4):
         else:
             raise Exception("Splice file doesn't exist!")
 
+        # drop the negative read counts if any
+        _df = _df[_df[f"{i+1}_count"] >= 0]
         dfs.append(_df)
 
     while len(dfs) > 1:
@@ -146,6 +149,8 @@ def process_introns_with_annotation(data_dir, num_samples, anno_intron_dict, sta
         else:
             raise Exception("Splice file doesn't exist!")
 
+        # drop the negative read counts if any
+        _df = _df[_df[f"{i+1}_count"] >= 0]
         dfs.append(_df)
 
     while len(dfs) > 1:
