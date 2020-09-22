@@ -68,21 +68,21 @@ python setup.py install --user --prefix=
 ```
 Usage: python run.py [options] [--bam-list bam_file_list.txt | --splice-list splice_file_list.txt]
 
-Required:
+required arguments:
   --bam-list BAM_LIST   a text file that contains the list of the BAM file
                         paths and sample conditions
   OR
   --splice-list SPLICE_LIST
                         a text file that contains the list of the SPLICE file
                         paths and sample conditions
-Options:
-  -h, --help            show this help message and exit
+optional arguments:
   --anno-file ANNO_FILE
-                        annotation file in GTF format
-  --out-dir OUT_DIR     output folder to store the results and temporary
-                        files (default: ./out)
+                        annotation file in GTF format.
+  --out-dir OUT_DIR     output folder to store the results and temporary files. (default: ./out)
   --num-threads NUM_THREADS
-                        number of CPU cores use to run the program (default: 4)
+                        number of CPU cores use to run the program. (default: 4)
+  -v, --version         show program's version number and exit
+  -h, --help            Show this help message and exit.
 ```
 
 Here is an example on how to run MntJULiP with the alignment files and the GENCODE annotation:
