@@ -6,9 +6,9 @@ import sys
 def get_arguments():
     parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter, description='A script to filter significant DSR introns')
     parser.add_argument('--dir', type=str, help='directory that contains diff_spliced_introns.txt and diff_spliced_groups.txt')
-    parser.add_argument('--pvalue', type=float, default=0.05, help='filter by p-value. (default 0.05)')
-    parser.add_argument('--qvalue', type=float, default=1, help='filter by q-value. (default 1.0)')
-    parser.add_argument('--dpsi', type=float, default=0.05, help='filter by absolute value of dPSI. (default 0.05)')
+    parser.add_argument('--pvalue', type=float, default=0.05, help='filter by p-value (default 0.05)')
+    parser.add_argument('--qvalue', type=float, default=1, help='filter by q-value (default 1.0)')
+    parser.add_argument('--dpsi', type=float, default=0.05, help='filter by absolute value of dPSI (default 0.05)')
 
     if len(sys.argv) < 2:
         parser.print_help(sys.stderr)
