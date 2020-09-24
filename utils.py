@@ -22,7 +22,12 @@ def get_splice_file_dataframe(list_file, data_dir):
         if file.endswith(".splice") or file.endswith(".splice.gz"):
             os.remove(data_dir / file)
     for i, file in enumerate(splice_file_df['sample']):
-        os.symlink(file, f"{data_dir}/sample_{i+1}.splice")
+        if os.path.isfile(file) and os.path.getsize(file) > 0:
+            os.symlink(file, data_dir / f"sample_{i+1}.splice")
+        elif not os.path.isfile(file):
+            raise FileNotFoundError(f'{file} does not exist!')
+        else:
+            raise Exception(f'{file} is empty!')
     return splice_file_df
 
 
