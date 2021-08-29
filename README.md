@@ -5,9 +5,10 @@ MntJULiP comprehensively and accurately quantifies splicing differences at intro
 Described in:
 
 Yang G, Sabinciyan S, and Florea L (2021). Comprehensive and scalable quantification of splicing differences with MntJULiP. Submitted. 
+
 Copyright (C) 2019-2021, and GNU GPL v3.0, by Guangyu Yang, Liliana Florea
 
-Supplementary [scripts](https://github.com/splicebox/MntJULiP/blob/master/src/MntJULiP_scripts.tar.gz) and data described in the article can be found in the 'src' directory and here.
+Data described in the article can be found [here](http://ccb.jhu.edu/software/MntJULiP/). Supplementary [scripts](https://github.com/splicebox/MntJULiP/blob/master/MntJULiP_scripts.tar.gz) are provided with this distribution. 
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.  
 
