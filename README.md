@@ -175,10 +175,34 @@ g000001 chr1    3216968 3421702 -       Xkr4    0.843335        0.784751        
 g000001 chr1    3323760 3421702 -       Xkr4    0.156665        0.215249        0.0585835
 ```
 
-To determine introns that are differentially spliced by the DSR test, one may query the two files for introns in 'bunches' that satisfy the statistical significance condition (*e.g.*, *p-val<=0.05* or *q-val<=0.05*) **and** for which the dPSI value exceeds a pre-defined cutoff (*e.g.*, *dPSI>=0.05*). For convenience, the script was provided with this package:
+To determine introns that are differentially spliced by the DSR test, one may query the two files for introns in 'bunches' that satisfy the statistical significance condition (*e.g.*, *p-val<=0.05* or *q-val<=0.05*) **and** for which the dPSI value exceeds a pre-defined cutoff (*e.g.*, *|dPSI|>=0.05*). For convenience, the script *filter_DSR_introns.py* was provided with this package:
+
+```
+filter_DSR_introns.py [-h] [--dir DIR] [--pvalue PVALUE] [--qvalue QVALUE] [--dpsi DPSI]
+
+optional arguments:
+  -h, --help       show this help message and exit
+  --dir DIR        directory that contains diff_spliced_introns.txt and diff_spliced_groups.txt
+  --pvalue PVALUE  filter by p-value (default 0.05)
+  --qvalue QVALUE  filter by q-value (default 1.0)
+  --dpsi DPSI      filter by absolute value of dPSI (default 0.05)
+```
+
+#### DSA analysis: *diff_introns.txt*
+
+The file *diff_introns.txt* contains information about differential spliced introns determined by the DSA criteria. It lists all introns, individually, along with the location on the genome, abundance (expression) estimates in terms of normalized read counts in each condition, and information about the log-likelihood ratio test and its significance: 
+
+```
+chrom   start   end     strand  gene_name       status  llr     p_value q_value avg_read_counts(control)        avg_read_counts(epileptic)
+chr1    3207317 3213439 -       Xkr4    TEST    0.718835        0.696729        0.89138 59.64   41.36
+```
+
+Introns that are differentially spliced by the DSA test can be determined directly from the file by querying the entries for statistical significance and/or other criteria. 
+
+#### Supporting intron data
 
 ### <a name="support"></a> Support
-Contact: etzlanim@gmail.com, florea@jhu.edu, or submit an [https://github.com/splicebox/MntJULiP/issues](Issue) through this Github page.   
+Contact: etzlanim@gmail.com, florea@jhu.edu, or submit an [Issue](https://github.com/splicebox/MntJULiP/issues) through this Github page.   
 
 #### License information
 See the file LICENSE for information on the history of this software, terms
