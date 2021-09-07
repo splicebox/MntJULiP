@@ -4,7 +4,7 @@ MntJULiP comprehensively and accurately quantifies splicing differences at intro
 
 Described in:
 
-Yang G, Sabinciyan S, and Florea L (2021). Comprehensive and scalable quantification of splicing differences with MntJULiP. *Submitted.* 
+Yang G, Sabunciyan S, and Florea L (2021). Comprehensive and scalable quantification of splicing differences with MntJULiP. *Submitted.* 
 
 ```
 Copyright (C) 2019-2021, and GNU GPL v3.0, by Guangyu Yang, Liliana Florea
