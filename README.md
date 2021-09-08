@@ -1,16 +1,17 @@
 ## MntJULiP ##
 
-MntJULiP comprehensively and accurately quantifies splicing differences at intron level from collections of RNA-seq data. 
+MntJULiP is a method for comprehensively and accurately quantifies splicing differences at intron level from collections of RNA-seq data. 
 
 Described in:
 
 Yang G, Sabunciyan S, and Florea L (2021). Comprehensive and scalable quantification of splicing differences with MntJULiP. *Submitted.* 
 
+Data described in the article can be found [here](http://ccb.jhu.edu/software/MntJULiP/). Supplementary [scripts](https://github.com/splicebox/MntJULiP/blob/master/MntJULiP_scripts.tar.gz) are provided with this distribution. 
+
+
 ```
 Copyright (C) 2019-2021, and GNU GPL v3.0, by Guangyu Yang, Liliana Florea
 ```
-
-Data described in the article can be found [here](http://ccb.jhu.edu/software/MntJULiP/). Supplementary [scripts](https://github.com/splicebox/MntJULiP/blob/master/MntJULiP_scripts.tar.gz) are provided with this distribution. 
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.  
 
