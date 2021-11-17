@@ -73,7 +73,7 @@ If you encounter "error: can't combine user with prefix, exec_prefix/home, or in
 ```
 python setup.py install --user --prefix=
 ```
-For some linux systems, "python" command usally links to python 2.x by default. If you encounter errors related to the python packages, please try to replace "python" with "python3", for example, use:
+For some linux distributions, "python" command usally links to python 2.x by default. If you encounter errors related to the python packages, please try to replace "python" with "python3", for example, use:
 ```
 python3 setup.py install
 ```
