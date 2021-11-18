@@ -58,7 +58,7 @@ MntJULiP has the following dependencies:
 
 The required packages can be installed from the [Python Package Index](https://pypi.org/) using pip3:
 ```
-pip3 install --user numpy scipy pandas pystan statsmodels "dask[complete]"
+pip3 install --user numpy scipy pandas pystan==2.19.1.1 statsmodels "dask[complete]"
 ```
 
 Alternatively, run setup.py to install MntJULiP and all the required packages; make sure you have the correct versions of Python and gcc in your path, and that they are loaded in that order. 
