@@ -200,6 +200,7 @@ optional arguments:
   --dpsi DPSI      filter by absolute value of dPSI (default 0.05)
 ```
 
+Note that, by virtue of how 'bunches' are constructed, an intron may be reported more than one time, for instance the exon-spanning intron in an exon skipping event will appear in two groups, one for each of its two endpoints. Additionally, more than one exon from teh same 'bunch' may satisfy the statistical test and be reported. Our visualization tool [Jutils](http://ccb.jhu.edu/software/Jutils/) selects an unbiased set of unique introns for display in heatmaps, following the criteria outlined [here](http://ccb.jhu.edu/software/Jutils/notes/aggregates.md). 
 
 #### 2. DSA analysis: *diff_introns.txt*
 
