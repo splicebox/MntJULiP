@@ -10,7 +10,7 @@ Data described in the article can be found [here](http://ccb.jhu.edu/software/Mn
 
 
 ```
-Copyright (C) 2019-2021, and GNU GPL v3.0, by Guangyu Yang, Liliana Florea
+Copyright (C) 2019-2022, and GNU GPL v3.0, by Guangyu Yang, Liliana Florea
 ```
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.  
