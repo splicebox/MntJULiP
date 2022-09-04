@@ -115,6 +115,8 @@ sample1.bam    control
 sample2.bam    case
 ```
 
+Note that in the current version MntJULiP automatically determines a reference condition, by sorting the conditions and choosing the lexicographically smallest one.
+
 Extracting the splice junctions and their read counts needed for quantification from the .bam files is the first and most time consuming step. It may be beneficial to avoid recalculating the values on subsequent runs of the data or subgroups. Also, in some cases the .bam files may not be available, or the splice junctions can be obtained from other sources. For efficient processing and to accommodate such cases, MntJULiP can work directly with the .splice files, instead of the .bam files, as input.
 
 Here is an example on how to run MntJULiP with the GENCODE annotation and the splice file list:
