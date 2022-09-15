@@ -4,7 +4,7 @@ MntJULiP is a method for comprehensively and accurately quantifying splicing dif
 
 Described in:
 
-Yang G, Sabunciyan S, and Florea L (2021). Comprehensive and scalable quantification of splicing differences with MntJULiP. *Submitted.* 
+Yang G, Sabunciyan S, and Florea L (2021). Comprehensive and scalable quantification of splicing differences with MntJULiP. *Genome Biol* 23:195. [Link](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-022-02767-y) 
 
 Data described in the article can be found [here](http://ccb.jhu.edu/software/MntJULiP/). Supplementary [scripts](https://github.com/splicebox/MntJULiP/blob/master/MntJULiP_scripts.tar.gz) are provided with this distribution. 
 
