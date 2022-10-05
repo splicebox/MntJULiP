@@ -27,8 +27,10 @@ def main():
     significant_groups = set()
     for line in lines[1:]:
         group_id, _chr, _, strand, gene_names_str, _, _, p_value, q_value = line.strip().split('\t')
+
         p_value, q_value = float(p_value), float(q_value)
-        if p_value < args.pvalue and q_value < args.qvalue:
+        if p_value <= args.pvalue and q_value <= args.qvalue:
+
             significant_groups.add(group_id)
 
     file = base_dir / 'diff_spliced_introns.txt'
@@ -38,7 +40,7 @@ def main():
     for line in lines[1:]:
         group_id, _chr, start, end, strand, _, _, _, dpsi = line.strip().split('\t')
         start, end, dpsi = int(start), int(end), float(dpsi)
-        if dpsi > args.dpsi and group_id in significant_groups:
+        if abs(dpsi) >= args.dpsi and group_id in significant_groups:
             print(line.strip())
 
 
