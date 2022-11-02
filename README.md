@@ -58,7 +58,7 @@ MntJULiP has the following dependencies:
 
 The required packages can be installed from the [Python Package Index](https://pypi.org/) using pip3:
 ```
-pip3 install --user numpy scipy pandas pystan==2.19.1.1 statsmodels "dask[complete]"
+pip3 install --user numpy scipy pandas "pystan<3" statsmodels "dask[complete]"
 ```
 
 Alternatively, run setup.py to install MntJULiP and all the required packages; make sure you have the correct versions of Python and gcc in your path, and that they are loaded in that order. 
@@ -77,6 +77,16 @@ For some linux distributions, "python" command usally links to python 2.x by def
 ```
 python3 setup.py install
 ```
+For [Conda](https://docs.conda.io/) user, it's easier to install MntJULiP without manually resolving the depedency issues.   
+Create the mntjulip environment by
+```
+conda create -n mntjulip-env python=3.9
+```
+Activate mntjulip-env by
+```
+conda activate mntjulip-env
+```
+Then run the above python commands to install MntJULiP
 
 ### <a name="usage"></a> Usage
 ```
