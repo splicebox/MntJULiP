@@ -8,7 +8,7 @@ import sys
 
 class MyInstall(install):
     def run(self):
-        dependencies = ['numpy', 'scipy', 'pandas', 'statsmodels', 'dask[complete]', 'pystan']
+        dependencies = ['numpy', 'scipy', 'pandas', 'statsmodels', 'dask[complete]', 'pystan<3']
         if self.user:
             subprocess.check_call([sys.executable, "-m", "pip", "install", "--user", "--no-cache-dir"] + dependencies)
         else:
