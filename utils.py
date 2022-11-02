@@ -65,16 +65,17 @@ def process_introns(data_dir, num_samples, num_threads=4):
             yield l[i:i + n]
 
     dfs = []
+    dtype_dict = {'chromosome': 'object'}
     for i in range(num_samples):
         columns = ["chromosome", "start", "end", f"{i+1}_count", "strand"]
         if os.path.exists(data_dir / f'sample_{i+1}.splice.gz'):
             filename = data_dir / f'sample_{i+1}.splice.gz'
             _df = dd.read_csv(filename, sep=' ', blocksize=None,
-                        names=columns, usecols=[0, 1, 2, 3, 4], compression='gzip')
+                        names=columns, usecols=[0, 1, 2, 3, 4], compression='gzip', dtype=dtype_dict)
         elif os.path.exists(data_dir / f'sample_{i+1}.splice'):
             filename = data_dir / f'sample_{i+1}.splice'
             _df = dd.read_csv(filename, sep=' ', blocksize=None,
-                        names=columns, usecols=[0, 1, 2, 3, 4])
+                        names=columns, usecols=[0, 1, 2, 3, 4], dtype=dtype_dict)
         else:
             raise Exception("Splice file doesn't exist!")
 
