@@ -10,6 +10,7 @@ from dask import delayed, compute
 import dask.dataframe as dd
 import os
 import glob
+import gzip
 
 
 def get_bam_file_dataframe(list_file):
@@ -65,7 +66,7 @@ def process_introns(data_dir, num_samples, num_threads=4):
             yield l[i:i + n]
 
     dfs = []
-    dtype_dict = {'chromosome': 'object'}
+    dtype_dict = {'chromosome': 'string'}
     for i in range(num_samples):
         columns = ["chromosome", "start", "end", f"{i+1}_count", "strand"]
         if os.path.exists(data_dir / f'sample_{i+1}.splice.gz'):
@@ -142,16 +143,17 @@ def process_introns_with_annotation(data_dir, num_samples, anno_intron_dict, sta
         return booleans
 
     dfs = []
+    dtype_dict = {'chromosome': 'string'}
     for i in range(num_samples):
         columns = ["chromosome", "start", "end", f"{i+1}_count", "strand"]
         if os.path.exists(data_dir / f'sample_{i+1}.splice.gz'):
             filename = data_dir / f'sample_{i+1}.splice.gz'
             _df = dd.read_csv(filename, sep=' ', blocksize=None,
-                        names=columns, usecols=[0, 1, 2, 3, 4], compression='gzip')
+                        names=columns, usecols=[0, 1, 2, 3, 4], compression='gzip', dtype=dtype_dict)
         elif os.path.exists(data_dir / f'sample_{i+1}.splice'):
             filename = data_dir / f'sample_{i+1}.splice'
             _df = dd.read_csv(filename, sep=' ', blocksize=None,
-                        names=columns, usecols=[0, 1, 2, 3, 4])
+                        names=columns, usecols=[0, 1, 2, 3, 4], dtype=dtype_dict)
         else:
             raise Exception("Splice file doesn't exist!")
 
@@ -368,7 +370,10 @@ def process_annotation(gtf_file):
         result_dict = {}
         for substr in _str.strip().split(';'):
             if substr:
-                key, value = substr.strip().split(' ')
+                try:
+                    key, value = substr.strip().split(' ', 1)
+                except ValueError:
+                    print(substr)
                 result_dict[key] = value.strip('\"')
         return result_dict
 
@@ -376,24 +381,25 @@ def process_annotation(gtf_file):
     tran_gene_dict = {}
     start_site_genes_dict = defaultdict(set)
     end_site_genes_dict = defaultdict(set)
-    with open(gtf_file, 'r') as f:
-        for line in f:
-            if line != '\n' and not(line.startswith('#')):
-                items = line.strip().split('\t')
-                if items[2] == 'exon':
-                    _chr, strand = items[0], items[6]
-                    start, end = int(items[3]), int(items[4])
-                    info_dict = process_string(items[8])
-                    tran_id = info_dict['transcript_id']
-                    tran_exons_dict[(_chr, strand, tran_id)].append((start, end))
-                    gene_id = info_dict['gene_id']
-                    # prefer choose gene name as id if available
-                    if 'gene_name' in info_dict:
-                        gene_id = info_dict['gene_name']
 
-                    tran_gene_dict[(_chr, strand, tran_id)] = gene_id
-                    start_site_genes_dict[(_chr, strand, end)].add(gene_id)
-                    end_site_genes_dict[(_chr, strand, start)].add(gene_id)
+    f = gzip.open(gtf_file, 'rt', encoding='utf-8') if gtf_file.endswith(".gz") else open(gtf_file, 'r')
+    for line in f:
+        if line != '\n' and not(line.startswith('#')):
+            items = line.strip().split('\t')
+            if items[2] == 'exon':
+                _chr, strand = items[0], items[6]
+                start, end = int(items[3]), int(items[4])
+                info_dict = process_string(items[8])
+                tran_id = info_dict['transcript_id']
+                tran_exons_dict[(_chr, strand, tran_id)].append((start, end))
+                gene_id = info_dict['gene_id']
+                # prefer choose gene name as id if available
+                if 'gene_name' in info_dict:
+                    gene_id = info_dict['gene_name']
+                tran_gene_dict[(_chr, strand, tran_id)] = gene_id
+                start_site_genes_dict[(_chr, strand, end)].add(gene_id)
+                end_site_genes_dict[(_chr, strand, start)].add(gene_id)
+    f.close()
 
     anno_intron_dict = defaultdict(set)
     for key, exon_coords in tran_exons_dict.items():
@@ -405,3 +411,4 @@ def process_annotation(gtf_file):
             anno_intron_dict[(_chr, strand, start, end)].add(gene_id)
 
     return anno_intron_dict, start_site_genes_dict, end_site_genes_dict
+
