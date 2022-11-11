@@ -220,7 +220,7 @@ def process_introns_with_annotation(data_dir, num_samples, anno_intron_dict, sta
     return df, index_df, anno_intron_dict
 
 
-def get_gene_names(anno_info, coord):
+def _get_gene_names(anno_info, coord):
     (anno_intron_dict, start_site_genes_dict, end_site_genes_dict) = anno_info
     gene_names = set()
     if coord in anno_intron_dict:
@@ -229,10 +229,18 @@ def get_gene_names(anno_info, coord):
         _chr, strand, start, end = coord
         if (_chr, strand, start) in start_site_genes_dict:
             gene_names.update(start_site_genes_dict[(_chr, strand, start)])
-
         if (_chr, strand, end) in end_site_genes_dict:
             gene_names.update(end_site_genes_dict[(_chr, strand, end)])
+    return gene_names
 
+
+def get_gene_names(anno_info, coord):
+    _chr, strand, start, end = coord
+    if strand == '?':
+        gene_names = _get_gene_names(anno_info, (_chr, "+", start, end))
+        gene_names.update(_get_gene_names(anno_info, (_chr, "-", start, end)))
+        return ','.join(gene_names) if gene_names else '.'
+    gene_names = _get_gene_names(anno_info, coord)
     return ','.join(gene_names) if gene_names else '.'
 
 
@@ -316,17 +324,12 @@ def get_group_gene_names(group, intron_coords, anno_info):
     (anno_intron_dict, start_site_genes_dict, end_site_genes_dict) = anno_info
     gene_names_list = []
     for coord in intron_coords:
-        gene_names = set()
-        if coord in anno_intron_dict:
-            gene_names.update(anno_intron_dict[coord])
+        _chr, strand, start, end = coord
+        if strand == '?':
+            gene_names = _get_gene_names(anno_info, (_chr, "+", start, end))
+            gene_names.update(_get_gene_names(anno_info, (_chr, "-", start, end)))
         else:
-            _chr, strand, start, end = coord
-            if (_chr, strand, start) in start_site_genes_dict:
-                gene_names.update(start_site_genes_dict[(_chr, strand, start)])
-
-            if (_chr, strand, end) in end_site_genes_dict:
-                gene_names.update(end_site_genes_dict[(_chr, strand, end)])
-
+            gene_names = _get_gene_names(anno_info, coord)
         gene_names_list.append(gene_names)
 
     gene_names = set.intersection(*gene_names_list)
