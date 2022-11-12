@@ -132,7 +132,7 @@ Extracting the splice junctions and their read counts needed for quantification 
 Here is an example on how to run MntJULiP with the GENCODE annotation and the splice file list:
 ```
 SPLICE_LIST="splice_file_list.txt"
-ANNO_FILE="gencode.v22.annotation.gtf"
+ANNO_FILE="gencode.v22.annotation.gtf.gz"
 python run.py --splice-list ${SPLICE_LIST} \
                --anno-file ${ANNO_FILE} \
                --num-threads 8 
