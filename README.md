@@ -156,7 +156,7 @@ chr1 1311924 1312018 100 - 67 33 ...
 
 ### Input
 
-The main input of MntJULiP is a list of BAM files containing the RNA-seq read alignments sorted by genomic coordinates. Currently, MntJULiP has been adapted to alignments generated with Tophat2 and STAR with/without '--outSAMstrandField intronMotif' option, for example:
+The main input of MntJULiP is a list of BAM files containing the RNA-seq read alignments sorted by genomic coordinates. Currently, MntJULiP has been adapted to alignments generated with Tophat2 or STAR with the '--outSAMstrandField intronMotif' option, for example:
 ```
 STAR --genomeDir ${STARIDX_DIR} \
      --outSAMstrandField intronMotif \
