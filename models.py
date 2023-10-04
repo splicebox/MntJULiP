@@ -9,6 +9,7 @@ import numpy as np
 from dask import delayed, compute
 from scipy.stats import chi2
 from statsmodels.stats import multitest
+import pandas
 
 
 # class/method to suppress pystan outputs
@@ -57,7 +58,7 @@ def nb_add_q_values(diff_intron_dict, error_rate, method):
 
 ###############################################################################
 ## Zero inflated Negative Binomial model
-def NB_model(df, conditions, model_dir, num_workers=4, count=5, error_rate=0.05,
+def NB_model(df, conditions, confounders, model_dir, num_workers=4, count=5, error_rate=0.05,
              method='fdr_bh', batch_size=500, aggressive_mode=False):
     diff_intron_dict = {}
     pred_intron_dict = {}
@@ -72,13 +73,13 @@ def NB_model(df, conditions, model_dir, num_workers=4, count=5, error_rate=0.05,
         ys.append(np.array(row_list[1:-1], dtype=np.int))
         coords.append(coord)
         if i > 0 and i % batch_size == 0:
-            delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, model_dir, count, aggressive_mode))
+            delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, confounders, model_dir, count, aggressive_mode))
             coords_batches.append(coords)
             coords = []
             ys = []
 
     if len(ys) > 0:
-        delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, model_dir, count, aggressive_mode))
+        delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, confounders, model_dir, count, aggressive_mode))
         coords_batches.append(coords)
 
     results_batches = list(compute(*delayed_results, traverse=False, num_workers=num_workers, scheduler="processes"))
@@ -100,13 +101,12 @@ def NB_model(df, conditions, model_dir, num_workers=4, count=5, error_rate=0.05,
 
     return diff_intron_dict, pred_intron_dict
 
-
-def batch_run_NB_model(ys, conditions, model_dir, count, aggressive_mode):
-    null_model = pickle.load(open(Path(model_dir) / 'null_NB_model.pkl', 'rb'))
-    alt_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.pkl', 'rb'))
+def batch_run_NB_model(ys, conditions, confounders, model_dir, count, aggressive_mode):
+    null_model = pickle.load(open(Path(model_dir) / 'null_NB_model.cov.pkl', 'rb'))
+    alt_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.cov.pkl', 'rb'))
     results = []
     for y in ys:
-        results.append(run_NB_model(y, conditions, count, null_model, alt_model, aggressive_mode))
+        results.append(run_NB_model(y, conditions, confounders, count, null_model, alt_model, aggressive_mode))
     return results
 
 
@@ -124,12 +124,16 @@ def custom_count(quantiles, means, aggressive_mode):
         return max(means)
 
 
-def run_NB_model(y, conditions, count, null_model, alt_model, aggressive_mode):
+def run_NB_model(y, conditions, confounders, count, null_model, alt_model, aggressive_mode):
+
     N = y.shape[0]
     z = conditions
     K = z.shape[1]
+    x_null=confounders.drop(['condition'],axis=1)
+    x_alt=confounders
     # init null model
-    null_data_dict = {'N': N, 'y': y, 'mu_raw': custom_mean(y, aggressive_mode)}
+    null_data_dict = {'N': N, 'y': y, 'mu_raw': custom_mean(y, aggressive_mode), 'K': K, 'P': len(x_null.columns), 'x': x_null}
+
     # init alternative model
     mu_raw = []
     means = []
@@ -149,10 +153,12 @@ def run_NB_model(y, conditions, count, null_model, alt_model, aggressive_mode):
     if _count <= count and np.any(values < 0):
         return None, None, np.array(means), np.array(_vars)
 
-    alt_data_dict = {'N': N, 'K': K, 'y': y, 'z': z, 'mu_raw': mu_raw}
+    alt_data_dict = {'N': N, 'K': K, 'y': y, 'z': z, 'mu_raw': mu_raw, 'P': len(x_alt.columns), 'x': x_alt}
+
+    max_optim_n=10
     with suppress_stdout_stderr():
         i = 0
-        while i < 10:
+        while i < max_optim_n:
             try:
                 fit_null = null_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5)
                 fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5)
@@ -161,7 +167,7 @@ def run_NB_model(y, conditions, count, null_model, alt_model, aggressive_mode):
                 continue
             break
 
-    if i == 10:
+    if i == max_optim_n:
         return None, None, np.array(means), None
     else:
         log_likelihood = fit_alt['value'] - fit_null['value']
@@ -172,7 +178,126 @@ def run_NB_model(y, conditions, count, null_model, alt_model, aggressive_mode):
     return p_value, log_likelihood, mus, sigmas
 
 
-def init_null_BN_model(model_dir):
+def init_null_NB_cov_model(model_dir):
+    code = """
+    data {
+    int<lower=1> N;
+    int<lower=1> P;
+    int<lower=0> y[N];
+    real<lower=0> mu_raw;
+    matrix[N,P] x;  // New covariate matrix with P columns
+    }
+    parameters {
+	real<lower=0, upper=1> theta;
+	real<lower=0> mu;
+	real<lower=1e-4> reciprocal_phi;
+	vector[P] beta;
+    }
+    model {
+    vector[N] xb;
+
+
+    mu ~ normal(mu_raw, sqrt(mu_raw/10) + 1e-4);
+    reciprocal_phi ~ normal(0,1);
+
+    beta[1]~normal(0,sqrt(mu_raw) + 1e-4);
+    xb=x*beta;
+
+    for (n in 1:N) {
+        real mu_pos;
+        if ((mu+xb[n])<=0){
+        mu_pos=0+1e-4;
+        }
+        else{
+        mu_pos=mu+xb[n];
+        }
+        if (y[n] == 0) {
+                target += log_sum_exp(bernoulli_lpmf(1 | theta),bernoulli_lpmf(0 | theta) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi)));
+
+        } else {
+                target += bernoulli_lpmf(0 | theta) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi));
+	    }
+	}
+    }
+
+    """
+    file = f'{model_dir}/null_NB_model.cov.pkl'
+    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
+    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
+    with open(file, 'wb') as f:
+        pickle.dump(model, f)
+
+def init_alt_NB_cov_model(model_dir):
+    code = """
+    data {
+        int<lower=1> N;
+    int<lower=1> P;
+        int<lower=1> K;
+        int<lower=0> y[N];
+        int<lower=0> z[N, K];
+        vector<lower=0>[K] mu_raw;
+    matrix[N,P] x;  // New covariate matrix with P columns
+    }
+    parameters {
+        real<lower=0, upper=1> theta[K];
+        vector<lower=0>[K] mu;
+        vector<lower=1e-4>[K] reciprocal_phi;
+    matrix[P,K] beta;
+    }
+    model {
+    matrix[N,K] xb;
+
+    print(x);print(beta);
+    beta[1]~normal(0,sqrt(mu_raw) + 1e-4);
+    for (p in 2:P){
+        beta[p]~normal(0,sqrt(mu_raw) + 1e-4);
+       }
+
+        mu ~ normal(mu_raw, sqrt(mu_raw/10)+1e-4);
+        reciprocal_phi ~ normal(0, 1);
+	xb=x*beta;
+        for (n in 1:N) {
+            vector[K] lps;
+            if (y[n] == 0){
+                for (k in 1:K){
+                    real mu_pos;
+                    if ((mu[k]+xb[n,k])<=0){
+                    mu_pos=0+1e-4;
+                    }
+                    else{
+                    mu_pos=mu[k]+xb[n,k];
+                    }
+                    print(y[n]," ",mu_pos);
+                    lps[k] = log_sum_exp(bernoulli_lpmf(1 | theta[k]), bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi[k])));
+                    lps[k] *= z[n][k];
+                }
+            }
+            else{
+                for (k in 1:K) {
+                    real mu_pos;
+                    if ((mu[k]+xb[n,k])<=0){
+                    mu_pos=0+1e-4;
+                    }
+                    else{
+                    mu_pos=mu[k]+xb[n,k];
+                    }
+                    lps[k] = bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi[k]));
+                    lps[k] *= z[n][k];
+                }
+            }
+            target += lps;
+        }
+    }
+
+    """
+    file = f'{model_dir}/alt_NB_model.cov.pkl'
+    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
+    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
+    with open(file, 'wb') as f:
+        pickle.dump(model, f)
+
+
+def init_null_NB_model(model_dir):
     code = """
     data {
         int<lower=1> N;
@@ -199,14 +324,14 @@ def init_null_BN_model(model_dir):
         }
     }
     """
-    file = model_dir / 'null_NB_model.pkl'
+    file = f'{model_dir}/null_NB_model.pkl'
     extra_compile_args = ['-pthread', '-DSTAN_THREADS']
     model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
     with open(file, 'wb') as f:
         pickle.dump(model, f)
 
 
-def init_alt_BN_model(model_dir):
+def init_alt_NB_model(model_dir):
     code = """
     data {
         int<lower=1> N;
@@ -243,7 +368,7 @@ def init_alt_BN_model(model_dir):
         }
     }
     """
-    file = model_dir / 'alt_NB_model.pkl'
+    file = f'{model_dir}/alt_NB_model.pkl'
     extra_compile_args = ['-pthread', '-DSTAN_THREADS']
     model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
     with open(file, 'wb') as f:
@@ -272,7 +397,7 @@ def get_splice_site_groups(intron_coords):
 
 
 ## Dirichlet Multinomial model
-def DM_model(df, index_df, conditions, model_dir, num_workers=4, error_rate=0.05,
+def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, error_rate=0.05,
             method='fdr_bh', batch_size=1000, group_filter=0, aggressive_mode=False):
     _df = df[df['label'] == 1].drop(['label'], axis=1)
     diff_dm_intron_dict = defaultdict(list)
@@ -303,7 +428,7 @@ def DM_model(df, index_df, conditions, model_dir, num_workers=4, error_rate=0.05
                         groups.append((f"g{i+1:06d}", (_chr, strand, group[0], group[1])))
                         coords.append(intron_coords)
                         if i > 0 and i % batch_size == 0:
-                            delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, model_dir, aggressive_mode))
+                            delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, confounders,model_dir, aggressive_mode))
                             groups_batches.append(groups)
                             coords_batches.append(coords)
                             groups = []
@@ -312,7 +437,7 @@ def DM_model(df, index_df, conditions, model_dir, num_workers=4, error_rate=0.05
                         i += 1
 
     if len(ys) > 0:
-        delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, model_dir, aggressive_mode))
+        delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, confounders,model_dir, aggressive_mode))
         groups_batches.append(groups)
         coords_batches.append(coords)
 
@@ -332,50 +457,114 @@ def DM_model(df, index_df, conditions, model_dir, num_workers=4, error_rate=0.05
     return diff_dm_intron_dict, diff_dm_group_dict
 
 
-def batch_run_DM_model(ys, conditions, model_dir, aggressive_mode):
-    null_model = pickle.load(open(Path(model_dir) / 'null_DM_model.pkl', 'rb'))
-    alt_model = pickle.load(open(Path(model_dir) / 'alt_DM_model.pkl', 'rb'))
+def batch_run_DM_model(ys, conditions, confounders, model_dir, aggressive_mode):
+    null_model = None
+    #null_model = pickle.load(open(Path(model_dir) / 'null_DM_model.pkl', 'rb'))
+    alt_model = pickle.load(open(Path(model_dir) / 'DM_cov_model.pkl', 'rb'))
     results = []
     for y in ys:
-        results.append(run_DM_model(y, conditions, null_model, alt_model, aggressive_mode))
+        results.append(run_DM_model(y, conditions, confounders, null_model, alt_model, aggressive_mode))
 
     return results
 
 
-def run_DM_model(y, conditions, null_model, alt_model, aggressive_mode):
+def run_DM_model(y, conditions, confounders, null_model, alt_model, aggressive_mode):
     N, M = y.shape
     z = conditions
     K = z.shape[1]
-    conc_raw, conc_std = 0, 1000
+    x_null=confounders.drop(['condition'],axis=1)
+    x_alt=confounders
     if aggressive_mode:
-        conc = np.sum(np.mean(y, axis=0))
-        conc_raw, conc_std = conc, np.sqrt(conc/10) + 1e-4
+        print("aggressive_mode to be implemented in DM model, aggressive_mode has not been enabled.")
+        #conc = np.sum(np.mean(y, axis=0))
+        #conc_raw, conc_std = conc, np.sqrt(conc/10) + 1e-4
 
-    # init null model
-    null_data_dict = {'N': N, 'M': M, 'y': y, 'conc_mu':conc_raw, 'conc_std': conc_std}
+    null_data_dict = {'N': N, 'M': M, 'y': y, 'conc_shape': 1.0001, 'conc_rate': 1e-4, 'P': len(x_null.columns), 'x': x_null}
 
-    # init alternative model
-    alt_data_dict = {'N': N, 'M': M, 'K': K, 'y': y, 'z': z, 'conc_mu':conc_raw, 'conc_std': conc_std}
+    alt_data_dict = {'N': N, 'M': M, 'y': y, 'conc_shape': 1.0001, 'conc_rate': 1e-4, 'P': len(x_alt.columns), 'x': x_alt}
 
+    max_optim_n=10
     with suppress_stdout_stderr():
         i = 0
-        while i < 10:
+        while i < max_optim_n:
             try:
-                fit_null = null_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5)
-                fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5)
+                fit_null = alt_model.optimizing(data=null_data_dict, as_vector=False)
+                fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False)
             except RuntimeError:
                 i += 1
                 continue
             break
 
-    if i == 10:
+    if i == max_optim_n:
         return None, None, None
     else:
+        beta=(fit_alt['par']['beta_raw']-1/len(pandas.DataFrame(fit_alt['par']['beta_raw']).columns)).T * fit_alt['par']['beta_scale']
+        beta_T=beta.T
+        def normalize(a):
+            return a/sum(a)
+        def softmax(a,normalize):
+            return normalize(np.exp(a))
+        def to_psi(b,conc,normalize,softmax):
+            return normalize(softmax(b,normalize)*conc)
+        null_psi=to_psi(beta_T[0],fit_alt['par']['conc'],normalize,softmax).tolist()
+        alt_psi=to_psi(beta_T[0]+beta_T[1],fit_alt['par']['conc'],normalize,softmax).tolist()
         log_likelihood = fit_alt['value'] - fit_null['value']
-        psis = fit_alt['par']['alpha'].T.tolist()
+        psis = np.array([alt_psi,null_psi]).T.tolist()
         p_value = 1 - chi2(M * (K - 1)).cdf(2 * (log_likelihood))
         return p_value, log_likelihood, psis
 
+
+def init_DM_cov_model(model_dir):
+    code = """
+    data {
+      int<lower=0> N; // sample size
+      int<lower=0> P; // number of covariates
+      int<lower=0> M; // number of classes
+      vector[P] x[N]; // covariates
+      vector[M] y[N]; // counts
+      real<lower=0> conc_shape; // concentration shape
+      real<lower=0> conc_rate; // concentration rate
+    }
+    parameters {
+      simplex[M] beta_raw[P]; 
+      real beta_scale[P];
+      real<lower=0> conc[M]; // concentration parameter
+    }
+
+    model {
+      matrix[M,P] beta;
+      for (k in 1:M)
+	for (p in 1:P)
+	  beta[k,p] = beta_scale[p] * (beta_raw[p][k] - 1.0 / M);
+
+      conc ~ gamma(conc_shape, conc_rate);
+      for (n in 1:N) {
+	vector[M] a;
+	real suma;
+	vector[M] aPlusY;
+	vector[M] lGaPlusY;
+	vector[M] lGaA ;
+	vector[M] s;
+	s = softmax(beta * x[n]);
+	for (k in 1:M)
+	  a[k] = conc[k] * s[k];
+	// explicit construction of multinomial dirichlet
+	// y ~ multinomial_dirichlet( conc * softmax(beta * x[n]) )
+	suma = sum(a);
+	aPlusY = a + y[n];
+	for (k in 1:M) {
+	  lGaPlusY[k] = lgamma(aPlusY[k]);
+	  lGaA[k] = lgamma(a[k]);
+	}
+	target += lgamma(suma)+sum(lGaPlusY)-lgamma(suma+sum(y[n]))-sum(lGaA);
+      }
+    }
+    """
+    file = f'{model_dir}/DM_cov_model.pkl'
+    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
+    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
+    with open(file, 'wb') as f:
+        pickle.dump(model, f)
 
 def init_null_DM_model(model_dir):
     code = """
@@ -404,7 +593,7 @@ def init_null_DM_model(model_dir):
         }
     }
     """
-    file = model_dir / 'null_DM_model.pkl'
+    file = f'{model_dir}/null_DM_model.pkl'
     extra_compile_args = ['-pthread', '-DSTAN_THREADS']
     model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
     with open(file, 'wb') as f:
@@ -445,7 +634,7 @@ def init_alt_DM_model(model_dir):
         }
     }
     """
-    file = model_dir / 'alt_DM_model.pkl'
+    file = f'{model_dir}/alt_DM_model.pkl'
     extra_compile_args = ['-pthread', '-DSTAN_THREADS']
     model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
     with open(file, 'wb') as f:

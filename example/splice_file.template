@@ -1,0 +1,11 @@
+sample	condition	sex
+FULL_PATH/sample_1.splice.gz	0	m
+FULL_PATH/sample_2.splice.gz	0	m
+FULL_PATH/sample_3.splice.gz	0	m
+FULL_PATH/sample_6.splice.gz	0	f
+FULL_PATH/sample_7.splice.gz	0	f
+FULL_PATH/sample_11.splice.gz	1	m
+FULL_PATH/sample_12.splice.gz	1	m
+FULL_PATH/sample_16.splice.gz	1	f
+FULL_PATH/sample_17.splice.gz	1	f
+FULL_PATH/sample_18.splice.gz	1	f

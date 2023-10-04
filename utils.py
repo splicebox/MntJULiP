@@ -11,6 +11,8 @@ import dask.dataframe as dd
 import os
 import glob
 import gzip
+from sklearn.preprocessing import StandardScaler
+
 
 
 def get_bam_file_dataframe(list_file):
@@ -36,9 +38,24 @@ def get_splice_file_dataframe(list_file, data_dir):
 
 
 def get_conditions(file_df):
+    def scale_col(x,col,i):
+        if pd.api.types.is_numeric_dtype(x[col]) and i!=0:  # never scale conditions
+            sc.fit(x)
+            sc.scale_ = np.std(x, axis=0, ddof=1).to_list()
+            return pd.DataFrame(sc.transform(x))
+        else:
+            factors,index=pd.factorize(x[col])
+            return pd.DataFrame(factors)
     conditions = pd.get_dummies(file_df['condition'])
     labels = conditions.columns.values.tolist()
-    return conditions.values, labels
+    confounders=file_df.iloc[:,1:]  # exclude 1st col: paths
+    sc = StandardScaler()
+    for i in range(len(confounders.columns)):
+        col=confounders.columns[i]
+        confounders[col]=scale_col(confounders[[col]],col,i)
+    confounders.insert(0,"intercept",1)
+    print(confounders.iloc[:,1:])
+    return conditions.values, labels, confounders
 
 
 def generate_splice_data(work_dir, out_dir, filename, bam_file, save_tmp):
@@ -75,11 +92,11 @@ def process_introns(data_dir, num_samples, num_threads=4):
         if os.path.exists(data_dir / f'sample_{i+1}.splice.gz'):
             filename = data_dir / f'sample_{i+1}.splice.gz'
             _df = dd.read_csv(filename, sep=' ', blocksize=None,
-                        names=columns, usecols=[0, 1, 2, 3, 4], compression='gzip', dtype=dtype_dict)
+                        names=columns, usecols=[0, 1, 2, 3, 4], compression='gzip')
         elif os.path.exists(data_dir / f'sample_{i+1}.splice'):
             filename = data_dir / f'sample_{i+1}.splice'
             _df = dd.read_csv(filename, sep=' ', blocksize=None,
-                        names=columns, usecols=[0, 1, 2, 3, 4], dtype=dtype_dict)
+                        names=columns, usecols=[0, 1, 2, 3, 4])
         else:
             raise Exception("Splice file doesn't exist!")
 

@@ -1,4 +1,3 @@
-"""Setup script for DeepVarint."""
 import os
 from setuptools import setup, find_packages
 from setuptools.command.install import install
@@ -26,9 +25,9 @@ def read(fname):
 
 setup(
     name='mntjulip',
-    version='1.1',
-    author="Guangyu Yang & Liliana Florea",
-    author_email="gyang22@jhu.edu",
+    version='2.0',
+    author="Wui Wang Lui & Guangyu Yang & Liliana Florea",
+    author_email="wlui3@jhu.edu",
     description = ("MntJULiP is a program for comprehensive and accurate quantification of splicing differences from RNA-seq data"),
     license="GNU GPL v3.0",
     # keywords = "",

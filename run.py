@@ -24,7 +24,7 @@ from models import NB_model, DM_model
 
 
 def get_arguments():
-    version = 'MntJULiP v1.1.0'
+    version = 'MntJULiP v2.0'
     parser = argparse.ArgumentParser(description=version, formatter_class=argparse.RawTextHelpFormatter, add_help=False)
     parser._action_groups.pop()
 
@@ -77,7 +77,7 @@ def get_arguments():
 def main():
     args = get_arguments()
 
-    # logging.info('Creating output folder ...')
+    logging.info('Creating output folder ...')
     out_dir = Path(args.out_dir)
     out_data_dir = out_dir / 'data'
     out_data_dir.mkdir(parents=True, exist_ok=True)
@@ -92,18 +92,19 @@ def main():
     group_filter = args.group_filter
     aggressive_mode = args.aggressive_mode
 
-    if args.bam_list:
+
+    if args.splice_list:
+        logging.info('Reading splice files ...')
+        file_list_df = get_splice_file_dataframe(args.splice_list, out_data_dir)
+    elif args.bam_list:
         file_list_df = get_bam_file_dataframe(args.bam_list)
         work_dir = os.path.dirname(os.path.abspath(__file__))
         logging.info('Generating splice files (or reusing splice files if save-tmp set to true and splice files exist) ...')
         generate_splice_files(work_dir, out_data_dir, file_list_df, num_threads, save_tmp=save_tmp)
-    elif args.splice_list:
-        logging.info('Reading splice files ...')
-        file_list_df = get_splice_file_dataframe(args.splice_list, out_data_dir)
     else:
         raise Exception('Please provide a BAM file list or SPLICE file list!')
 
-    conditions, labels = get_conditions(file_list_df)
+    conditions, labels, confounders = get_conditions(file_list_df)
     num_samples = conditions.shape[0]
 
     logging.info(f"Processing {num_samples} samples ...")
@@ -124,14 +125,16 @@ def main():
 
     logging.info('Fitting Negative Binomial models ...')
     start_time = time.time()
-    diff_nb_intron_dict, pred_intron_dict = NB_model(df, conditions, model_dir,
+    diff_nb_intron_dict, pred_intron_dict = NB_model(df, conditions, confounders, model_dir,
                                              num_workers=num_threads, count=count, error_rate=error_rate,
                                              method=method, batch_size=batch_size, aggressive_mode=aggressive_mode)
+    #TODO currently perform DM on all introns
+    df['label']=1
     logging.info(f'Finished! Took {time.time() - start_time:0.2f} seconds.')
 
     logging.info('Fitting Dirichlet Multinomial models ...')
     start_time = time.time()
-    diff_dm_intron_dict, diff_dm_group_dict = DM_model(df, index_df, conditions, model_dir,
+    diff_dm_intron_dict, diff_dm_group_dict = DM_model(df, index_df, conditions, confounders, model_dir,
                                                         num_workers=num_threads, error_rate=error_rate,
                                                         method=method, batch_size=batch_size, group_filter=group_filter,
                                                         aggressive_mode=aggressive_mode)
