@@ -2,7 +2,7 @@
 
 MntJULiP is a program for comprehensive and accurate quantification of splicing differences from RNA-seq data. MntJULiP can detect changes in splicing ratios and in absolute splicing levels. It characterizes splicing at the intron level, avoiding the need for pre-assembly, and can be used with or without a reference annotation.
 
-Copyright (C) 2019-2020, and GNU GPL v3.0, by Guangyu Yang, Liliana Florea
+Copyright (C) 2019-2023, and GNU GPL v3.0, by Wui Wang Lui, Guangyu Yang, Liliana Florea
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.  
 
@@ -110,7 +110,7 @@ samtools index accepted_hits.sorted.bam
 
 
 ### <a name="support"></a> Support
-Contact: gyang22@jhu.edu, florea@jhu.edu  
+Contact: wlui3@jhu.edu, florea@jhu.edu  
 
 #### License information
 See the file LICENSE for information on the history of this software, terms

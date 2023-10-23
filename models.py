@@ -160,8 +160,8 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, aggre
         i = 0
         while i < max_optim_n:
             try:
-                fit_null = null_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5)
-                fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5)
+                fit_null = null_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5,init={'beta':[0 for _ in range(len(x_null.columns))]})
+                fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5,init={'beta': [[0 for _ in range(K)] for _ in range(len(x_alt.columns))]})
             except RuntimeError:
                 i += 1
                 continue
@@ -201,6 +201,9 @@ def init_null_NB_cov_model(model_dir):
     reciprocal_phi ~ normal(0,1);
 
     beta[1]~normal(0,sqrt(mu_raw) + 1e-4);
+    for (p in 2:P){
+        beta[p]~normal(0,sqrt(mu_raw) + 1e-4);
+    }
     xb=x*beta;
 
     for (n in 1:N) {
@@ -247,7 +250,6 @@ def init_alt_NB_cov_model(model_dir):
     model {
     matrix[N,K] xb;
 
-    print(x);print(beta);
     beta[1]~normal(0,sqrt(mu_raw) + 1e-4);
     for (p in 2:P){
         beta[p]~normal(0,sqrt(mu_raw) + 1e-4);
@@ -267,7 +269,6 @@ def init_alt_NB_cov_model(model_dir):
                     else{
                     mu_pos=mu[k]+xb[n,k];
                     }
-                    print(y[n]," ",mu_pos);
                     lps[k] = log_sum_exp(bernoulli_lpmf(1 | theta[k]), bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi[k])));
                     lps[k] *= z[n][k];
                 }
