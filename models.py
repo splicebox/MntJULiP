@@ -132,7 +132,7 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, aggre
     x_null=confounders.drop(['condition'],axis=1)
     x_alt=confounders
     # init null model
-    null_data_dict = {'N': N, 'y': y, 'mu_raw': custom_mean(y, aggressive_mode), 'K': K, 'P': len(x_null.columns), 'x': x_null}
+    null_data_dict = {'N': N, 'y': y, 'mu_raw': custom_mean(y, aggressive_mode), 'P': len(x_null.columns), 'x': x_null}
 
     # init alternative model
     mu_raw = []
@@ -459,9 +459,8 @@ def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, er
 
 
 def batch_run_DM_model(ys, conditions, confounders, model_dir, aggressive_mode):
-    null_model = None
-    #null_model = pickle.load(open(Path(model_dir) / 'null_DM_model.pkl', 'rb'))
-    alt_model = pickle.load(open(Path(model_dir) / 'DM_cov_model.pkl', 'rb'))
+    null_model = pickle.load(open(Path(model_dir) / 'null_DM_model.cov.pkl', 'rb'))
+    alt_model = pickle.load(open(Path(model_dir) / 'alt_DM_model.cov.pkl', 'rb'))
     results = []
     for y in ys:
         results.append(run_DM_model(y, conditions, confounders, null_model, alt_model, aggressive_mode))
@@ -480,17 +479,17 @@ def run_DM_model(y, conditions, confounders, null_model, alt_model, aggressive_m
         #conc = np.sum(np.mean(y, axis=0))
         #conc_raw, conc_std = conc, np.sqrt(conc/10) + 1e-4
 
-    null_data_dict = {'N': N, 'M': M, 'y': y, 'conc_shape': 1.0001, 'conc_rate': 1e-4, 'P': len(x_null.columns), 'x': x_null}
+    null_data_dict = {'N': N, 'M': M, 'y': y, 'P': len(x_null.columns), 'x': x_null, 'conc_mu': 0, 'conc_std': 1000}
 
-    alt_data_dict = {'N': N, 'M': M, 'y': y, 'conc_shape': 1.0001, 'conc_rate': 1e-4, 'P': len(x_alt.columns), 'x': x_alt}
+    alt_data_dict = {'N': N, 'K': K, 'M': M, 'y': y, 'P': len(x_null.columns), 'x': x_null, 'conc_mu': 0, 'conc_std': 1000, 'z':z}
 
     max_optim_n=10
     with suppress_stdout_stderr():
         i = 0
         while i < max_optim_n:
             try:
-                fit_null = alt_model.optimizing(data=null_data_dict, as_vector=False)
-                fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False)
+                fit_null = null_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5)
+                fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5)
             except RuntimeError:
                 i += 1
                 continue
@@ -499,20 +498,113 @@ def run_DM_model(y, conditions, confounders, null_model, alt_model, aggressive_m
     if i == max_optim_n:
         return None, None, None
     else:
-        beta=(fit_alt['par']['beta_raw']-1/len(pandas.DataFrame(fit_alt['par']['beta_raw']).columns)).T * fit_alt['par']['beta_scale']
-        beta_T=beta.T
-        def normalize(a):
-            return a/sum(a)
-        def softmax(a,normalize):
-            return normalize(np.exp(a))
-        def to_psi(b,conc,normalize,softmax):
-            return normalize(softmax(b,normalize)*conc)
-        null_psi=to_psi(beta_T[0],fit_alt['par']['conc'],normalize,softmax).tolist()
-        alt_psi=to_psi(beta_T[0]+beta_T[1],fit_alt['par']['conc'],normalize,softmax).tolist()
         log_likelihood = fit_alt['value'] - fit_null['value']
-        psis = np.array([alt_psi,null_psi]).T.tolist()
+        psis = fit_alt['par']['alpha'].T.tolist()
         p_value = 1 - chi2(M * (K - 1)).cdf(2 * (log_likelihood))
         return p_value, log_likelihood, psis
+
+def init_alt_DM_model_cov(model_dir):
+    code = """
+    functions {
+        real dirichlet_multinomial_lpmf(int[] y, vector alpha) {
+            real alpha_plus = sum(alpha);
+            return lgamma(alpha_plus) + sum(lgamma(alpha + to_vector(y)))
+                        - lgamma(alpha_plus + sum(y)) - sum(lgamma(alpha));
+        }
+    }
+    data {
+        int<lower=0> P; // number of covariates
+        int<lower=1> N;
+        vector[P] x[N]; // covariates
+        int<lower=1> M;
+        int<lower=0> y[N, M];
+        real<lower=0> conc_mu;
+        real<lower=0> conc_std;
+    }
+    parameters {
+	simplex[M] beta_raw[P]; 
+	real beta_scale[P];
+        simplex[M] alpha;
+        real<lower=0> conc;
+    }
+    model {
+	matrix[M,P] beta;
+	for (m in 1:M)
+	  for (p in 1:P)
+	    beta[m,p] = beta_scale[p] * (beta_raw[p][m] - 1.0 / M);
+        conc ~ normal(conc_mu, conc_std);
+
+        for (n in 1:N) {
+            vector[M] s;
+            vector[M] a;
+            s = softmax(beta * x[n]);
+	    for (m in 1:M)
+	      a[m]=alpha[m]*s[m]/(1.0/M);
+	    target += dirichlet_multinomial_lpmf(y[n] | conc * a);
+        }
+    }
+    """
+    file = f'{model_dir}/null_DM_model.cov.pkl'
+    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
+    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
+    with open(file, 'wb') as f:
+        pickle.dump(model, f)
+
+
+def init_alt_DM_model_cov(model_dir):
+    code = """
+    functions {
+        real dirichlet_multinomial_lpmf(int[] y, vector alpha) {
+            real alpha_plus = sum(alpha);
+            return lgamma(alpha_plus) + sum(lgamma(alpha + to_vector(y)))
+                        - lgamma(alpha_plus + sum(y)) - sum(lgamma(alpha));
+        }
+    }
+    data {
+        int<lower=0> P; // number of covariates
+        int<lower=1> N;
+        vector[P] x[N]; // covariates
+        int<lower=1> M;
+        int<lower=1> K;
+        int<lower=0> y[N, M];
+        int<lower=0> z[N, K];
+        real<lower=0> conc_mu;
+        real<lower=0> conc_std;
+    }
+    parameters {
+  simplex[M] beta_raw[P]; 
+  real beta_scale[P];
+        simplex[M] alpha[K];
+        real<lower=0> conc;
+    }
+    model {
+	matrix[M,P] beta;
+	for (m in 1:M)
+	  for (p in 1:P)
+	    beta[m,p] = beta_scale[p] * (beta_raw[p][m] - 1.0 / M);
+        conc ~ normal(conc_mu, conc_std);
+
+        for (n in 1:N) {
+            vector[M] s;
+
+            vector[K] lps;
+            s = softmax(beta * x[n]);
+            for (k in 1:K){
+                vector[M] a;
+		for (m in 1:M)
+		  a[m]=alpha[k][m]*s[m]/(1.0/M);
+                lps[k] = dirichlet_multinomial_lpmf(y[n] | conc * a);
+                lps[k] *= z[n][k];
+            }
+            target += lps;
+        }
+    }
+    """
+    file = f'{model_dir}/alt_DM_model.cov.pkl'
+    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
+    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
+    with open(file, 'wb') as f:
+        pickle.dump(model, f)
 
 
 def init_DM_cov_model(model_dir):
