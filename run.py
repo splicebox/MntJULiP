@@ -19,7 +19,7 @@ from utils import get_bam_file_dataframe, get_conditions
 from utils import generate_splice_files, get_splice_file_dataframe
 from utils import process_annotation, process_introns_with_annotation
 from utils import process_introns
-from utils import write_pred_intron_file, write_diff_nb_intron_file, write_diff_dm_intron_file, write_diff_dm_group_file
+from utils import write_pred_intron_file, write_diff_nb_intron_file, write_diff_dm_intron_file, write_diff_dm_group_file, write_diff_dm_sample_psi_file
 from models import NB_model, DM_model
 
 
@@ -51,7 +51,9 @@ def get_arguments():
     advanced_args.add_argument('--group-filter', type=float, default=1., help='minimum read counts required for group in at least one sample (default: 1).')
     advanced_args.add_argument('--debug', action='store_true', default=False, help='Debug mode for showing more information.')
     advanced_args.add_argument('--aggressive-mode', action='store_true', default=False,
-                        help='set MnutJULiP to aggressive mode for highly dispersed data (e.g. cancer data)')
+                        help='set MnutJULiP to aggressive mode for highly dispersed data (e.g. cancer data).')
+    advanced_args.add_argument('--sample-psi-option', action='store_true', default=False,
+                        help='output sample-level psis.')
     advanced_args.add_argument('--method', type=str, default='fdr_bh',
                         help=textwrap.dedent('''\
     method used for testing and adjustment of p-values (default: 'fdr_bh')
@@ -91,6 +93,7 @@ def main():
     debug = args.debug
     group_filter = args.group_filter
     aggressive_mode = args.aggressive_mode
+    sample_psi_option = args.sample_psi_option
 
 
     if args.splice_list:
@@ -134,10 +137,10 @@ def main():
 
     logging.info('Fitting Dirichlet Multinomial models ...')
     start_time = time.time()
-    diff_dm_intron_dict, diff_dm_group_dict = DM_model(df, index_df, conditions, confounders, model_dir,
+    diff_dm_intron_dict, diff_dm_group_dict, diff_dm_sample_psi_dict = DM_model(df, index_df, conditions, confounders, model_dir,
                                                         num_workers=num_threads, error_rate=error_rate,
                                                         method=method, batch_size=batch_size, group_filter=group_filter,
-                                                        aggressive_mode=aggressive_mode)
+                                                        aggressive_mode=aggressive_mode, sample_psi_option=sample_psi_option)
     logging.info(f'Finished! Took {time.time() - start_time:0.2f} seconds.')
 
     logging.info('Writing results ...')
@@ -145,6 +148,8 @@ def main():
     write_diff_nb_intron_file(labels, diff_nb_intron_dict, out_dir, anno_info, debug=debug)
     write_diff_dm_intron_file(labels, diff_dm_intron_dict, out_dir, anno_info)
     write_diff_dm_group_file(diff_dm_group_dict, out_dir, anno_info)
+    if sample_psi_option==True:
+        write_diff_dm_sample_psi_file(conditions, labels, diff_dm_sample_psi_dict, out_dir, anno_info)
 
     if not save_tmp:
         shutil.rmtree(out_data_dir)

@@ -39,23 +39,23 @@ def get_splice_file_dataframe(list_file, data_dir):
 
 def get_conditions(file_df):
     def scale_col(x,col,i):
-        if pd.api.types.is_numeric_dtype(x[col]) and i!=0:  # never scale conditions
+        if pd.api.types.is_numeric_dtype(x[col]):
             sc.fit(x)
             sc.scale_ = np.std(x, axis=0, ddof=1).to_list()
             return pd.DataFrame(sc.transform(x))
         else:
-            factors,index=pd.factorize(x[col])
-            return pd.DataFrame(factors)
+            return pd.get_dummies(x[col]).iloc[:,1:]
     conditions = pd.get_dummies(file_df['condition'])
+    conditions_coefficients = conditions.iloc[:,1:]
     labels = conditions.columns.values.tolist()
-    confounders=file_df.iloc[:,1:]  # exclude 1st col: paths
+    confounders=file_df.iloc[:,2:]  # exclude 1st,2nd col: paths,conditions
     sc = StandardScaler()
     for i in range(len(confounders.columns)):
         col=confounders.columns[i]
-        confounders[col]=scale_col(confounders[[col]],col,i)
-    confounders.insert(0,"intercept",1)
-    print(confounders.iloc[:,1:])
-    return conditions.values, labels, confounders
+        conditions_coefficients=conditions_coefficients.join(scale_col(confounders[[col]],col,i),rsuffix=f'_{col}')
+    conditions_coefficients.insert(0,"intercept",1)
+    print(conditions_coefficients.iloc[:,1:])
+    return conditions.values, labels, conditions_coefficients
 
 
 def generate_splice_data(work_dir, out_dir, filename, bam_file, save_tmp):
@@ -339,6 +339,26 @@ def write_diff_dm_intron_file(labels, diff_dm_intron_dict, out_dir, anno_info=No
                     _list += [f"{dpsi:.6g}"]
                 f.write('\t'.join(_list) + '\n')
 
+def write_diff_dm_sample_psi_file(conditions, labels, diff_dm_sample_psi_dict, out_dir, anno_info=None):
+    file = out_dir / 'group_data.txt'
+    _list = ['group_id', 'chrom', 'start', 'end', 'strand', 'gene_name', 'status']
+
+    indices = []
+    for i, label in enumerate(labels):
+        indices.append(np.where(conditions[:, i] > 0)[0])
+        _list.append(f"psi_values({label})")
+
+    with open(file, 'w') as f:
+        f.write('\t'.join(_list) + '\n')
+        for coord, values in diff_dm_sample_psi_dict.items():
+            for value in values:
+                group_id, sample_psi, p_value = value
+                gene_names = get_gene_names(anno_info, coord) if anno_info else '.'
+                status = 'TEST' if p_value is not None else 'NO_TEST'
+                _chr, strand, start, end = coord
+                _list = [group_id, _chr, str(start), str(end), strand, gene_names, status] + [','.join(np.take(sample_psi, i).astype(str).tolist()) for i in indices]
+                f.write('\t'.join(_list) + '\n')
+
 
 def get_group_gene_names(group, intron_coords, anno_info):
     (anno_intron_dict, start_site_genes_dict, end_site_genes_dict) = anno_info
@@ -369,8 +389,12 @@ def write_diff_dm_group_file(diff_dm_group_dict, out_dir, anno_info=None):
             _chr, strand, loc, structure = group
             group_id, p_value, log_likelihood, intron_coords, q_value = value
             gene_names = get_group_gene_names(group, intron_coords, anno_info) if anno_info else '.'
-            _list = [group_id, _chr, str(loc), strand, gene_names, structure,
-                    f"{log_likelihood:.6g}", f"{p_value:.6g}", f"{q_value:.6g}"]
+            if p_value:
+                _list = [group_id, _chr, str(loc), strand, gene_names, structure,
+                        f"{log_likelihood:.6g}", f"{p_value:.6g}", f"{q_value:.6g}"]
+            else:
+                _list = [group_id, _chr, str(loc), strand, gene_names, structure,
+                        "", "", ""]
             f.write('\t'.join(_list) + '\n')
 
 

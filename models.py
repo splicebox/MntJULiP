@@ -129,7 +129,7 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, aggre
     N = y.shape[0]
     z = conditions
     K = z.shape[1]
-    x_null=confounders.drop(['condition'],axis=1)
+    x_null=confounders.drop(confounders.columns[range(1,K-1+1)],axis=1)
     x_alt=confounders
     # init null model
     null_data_dict = {'N': N, 'y': y, 'mu_raw': custom_mean(y, aggressive_mode), 'P': len(x_null.columns), 'x': x_null}
@@ -155,7 +155,7 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, aggre
 
     alt_data_dict = {'N': N, 'K': K, 'y': y, 'z': z, 'mu_raw': mu_raw, 'P': len(x_alt.columns), 'x': x_alt}
 
-    max_optim_n=10
+    max_optim_n=100
     with suppress_stdout_stderr():
         i = 0
         while i < max_optim_n:
@@ -399,9 +399,11 @@ def get_splice_site_groups(intron_coords):
 
 ## Dirichlet Multinomial model
 def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, error_rate=0.05,
-            method='fdr_bh', batch_size=1000, group_filter=0, aggressive_mode=False):
+            method='fdr_bh', batch_size=1000, group_filter=0, aggressive_mode=False, sample_psi_option=False, residual_sigma=10):
     _df = df[df['label'] == 1].drop(['label'], axis=1)
     diff_dm_intron_dict = defaultdict(list)
+    diff_dm_sample_psi_dict = defaultdict(list)
+
     groups = []
     coords_list = []
     delayed_results = []
@@ -429,7 +431,7 @@ def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, er
                         groups.append((f"g{i+1:06d}", (_chr, strand, group[0], group[1])))
                         coords.append(intron_coords)
                         if i > 0 and i % batch_size == 0:
-                            delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, confounders,model_dir, aggressive_mode))
+                            delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, confounders,model_dir, aggressive_mode, sample_psi_option, residual_sigma))
                             groups_batches.append(groups)
                             coords_batches.append(coords)
                             groups = []
@@ -438,7 +440,7 @@ def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, er
                         i += 1
 
     if len(ys) > 0:
-        delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, confounders,model_dir, aggressive_mode))
+        delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, confounders,model_dir, aggressive_mode, sample_psi_option, residual_sigma))
         groups_batches.append(groups)
         coords_batches.append(coords)
 
@@ -448,62 +450,94 @@ def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, er
     for groups, results, coords_list in zip(groups_batches, results_batches, coords_batches):
         for group_info, result, coords in zip(groups, results, coords_list):
             group_id, group = group_info
-            p_value, log_likelihood, psis = result
+            p_value, log_likelihood, psis, sample_psis = result
             diff_dm_group_dict[group] = [group_id, p_value, log_likelihood, coords]
-            for coord, psi in zip(coords, psis):
-                diff_dm_intron_dict[coord].append((group_id, psi))
+            if psis:
+                for coord, psi in zip(coords, psis):
+                    diff_dm_intron_dict[coord].append((group_id, psi))
+                if sample_psi_option==True:
+                    for coord, sample_psi in zip(coords, sample_psis):
+                        diff_dm_sample_psi_dict[coord].append((group_id, sample_psi, p_value))
 
     logging.info(f"{i+1} groups processed")
     diff_dm_group_dict = dm_add_q_values(diff_dm_group_dict, error_rate, method)
-    return diff_dm_intron_dict, diff_dm_group_dict
+    return diff_dm_intron_dict, diff_dm_group_dict, diff_dm_sample_psi_dict
 
 
 def batch_run_DM_model(ys, conditions, confounders, model_dir, aggressive_mode):
-    null_model = pickle.load(open(Path(model_dir) / 'null_DM_model.cov.pkl', 'rb'))
-    alt_model = pickle.load(open(Path(model_dir) / 'alt_DM_model.cov.pkl', 'rb'))
+    null_model = None
+    alt_model = pickle.load(open(Path(model_dir) / 'DM_model.beta_reparam.cov.pkl', 'rb'))
+    sample_psi_model = None
+    if sample_psi_option:
+        sample_psi_model= pickle.load(open(Path(model_dir) / 'DM_model.beta_reparam.cov.residual.pkl', 'rb'))
+
     results = []
     for y in ys:
-        results.append(run_DM_model(y, conditions, confounders, null_model, alt_model, aggressive_mode))
+        results.append(run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_model, aggressive_mode, residual_sigma))
 
     return results
 
-
-def run_DM_model(y, conditions, confounders, null_model, alt_model, aggressive_mode):
+def run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_model, aggressive_mode, residual_sigma=10):
     N, M = y.shape
     z = conditions
     K = z.shape[1]
-    x_null=confounders.drop(['condition'],axis=1)
+    x_null=confounders.drop(confounders.columns[range(1,K-1+1)],axis=1)
     x_alt=confounders
+    alt_col_n=len(x_alt.columns)
     if aggressive_mode:
         print("aggressive_mode to be implemented in DM model, aggressive_mode has not been enabled.")
         #conc = np.sum(np.mean(y, axis=0))
         #conc_raw, conc_std = conc, np.sqrt(conc/10) + 1e-4
 
-    null_data_dict = {'N': N, 'M': M, 'y': y, 'P': len(x_null.columns), 'x': x_null, 'conc_mu': 0, 'conc_std': 1000}
+    null_data_dict = {'N': N, 'M': M, 'y': y, 'P': len(x_null.columns), 'x': x_null, 'concShape': 1.0001, 'concRate': 1e-4}
 
-    alt_data_dict = {'N': N, 'K': K, 'M': M, 'y': y, 'P': len(x_null.columns), 'x': x_null, 'conc_mu': 0, 'conc_std': 1000, 'z':z}
+    alt_data_dict = {'N': N, 'K': K, 'M': M, 'y': y, 'P': alt_col_n, 'x': x_alt, 'concShape': 1.0001, 'concRate': 1e-4}
 
     max_optim_n=10
     with suppress_stdout_stderr():
         i = 0
         while i < max_optim_n:
             try:
-                fit_null = null_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5)
+                fit_null = alt_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5)
                 fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5)
+                beta=(fit_alt['par']['beta_raw']-1/fit_alt['par']['beta_raw'].shape[1]).T * fit_alt['par']['beta_scale']
+                if sample_psi_model!=None:
+                    sample_psi_data_dict=alt_data_dict.copy()
+                    sample_psi_data_dict['beta']=beta
+                    sample_psi_data_dict['conc']=fit_alt['par']['conc']
+                    sample_psi_data_dict['residual_sigma']=residual_sigma
+                    fit_sample_psi=sample_psi_model.optimizing(data=sample_psi_data_dict, as_vector=False,  verbose=True, init=0)
+
             except RuntimeError:
                 i += 1
                 continue
             break
 
     if i == max_optim_n:
-        return None, None, None
+        return None, None, None, None
     else:
-        log_likelihood = fit_alt['value'] - fit_null['value']
-        psis = fit_alt['par']['alpha'].T.tolist()
-        p_value = 1 - chi2(M * (K - 1)).cdf(2 * (log_likelihood))
-        return p_value, log_likelihood, psis
+        def normalize(a):
+            return a/sum(a)
+        def softmax(a,normalize):
+            return normalize(np.exp(a))
+        def to_psi(b,conc,normalize,softmax):
+            return normalize(softmax(b,normalize)*conc)
+        beta_T=beta.T
+        psi_list=[]
+        psi_list.append(to_psi(beta_T[0],fit_alt['par']['conc'],normalize,softmax).tolist())
+        for j in range(K-1):
+            psi_list.append(to_psi(beta_T[0]+beta_T[j+1],fit_alt['par']['conc'],normalize,softmax).tolist())
 
-def init_alt_DM_model_cov(model_dir):
+        log_likelihood = fit_alt['value'] - fit_null['value']
+        psis = np.array(psi_list).T.tolist()
+        p_value = 1 - chi2(M * (K - 1)).cdf(2 * (log_likelihood))
+        sample_psis=None
+        if sample_psi_model!=None:
+            lo_residuals=fit_sample_psi['par']['residual'] + np.dot(confounders.drop(confounders.columns[range(1,full_col_n)],axis=1), pandas.DataFrame(beta).T.drop(range(1,full_col_n)))
+            sample_psis=normalize((softmax(lo_residuals.T,normalize).T*fit_alt['par']['conc']).T)
+        return p_value, log_likelihood, psis, sample_psis
+
+def init_null_DM_cov_model(model_dir):
     code = """
     functions {
         real dirichlet_multinomial_lpmf(int[] y, vector alpha) {
@@ -551,7 +585,7 @@ def init_alt_DM_model_cov(model_dir):
         pickle.dump(model, f)
 
 
-def init_alt_DM_model_cov(model_dir):
+def init_alt_DM_cov_model(model_dir):
     code = """
     functions {
         real dirichlet_multinomial_lpmf(int[] y, vector alpha) {
@@ -607,7 +641,7 @@ def init_alt_DM_model_cov(model_dir):
         pickle.dump(model, f)
 
 
-def init_DM_cov_model(model_dir):
+def init_DM_beta_reparam_cov_model(model_dir):
     code = """
     data {
       int<lower=0> N; // sample size
@@ -641,7 +675,6 @@ def init_DM_cov_model(model_dir):
 	s = softmax(beta * x[n]);
 	for (k in 1:M)
 	  a[k] = conc[k] * s[k];
-	// explicit construction of multinomial dirichlet
 	// y ~ multinomial_dirichlet( conc * softmax(beta * x[n]) )
 	suma = sum(a);
 	aPlusY = a + y[n];
@@ -653,7 +686,54 @@ def init_DM_cov_model(model_dir):
       }
     }
     """
-    file = f'{model_dir}/DM_cov_model.pkl'
+    file = f'{model_dir}/DM_model.beta_reparam.cov.pkl'
+    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
+    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
+    with open(file, 'wb') as f:
+        pickle.dump(model, f)
+
+def init_DM_beta_reparam_cov_residual_model(model_dir):
+    code = """
+    data {
+      int<lower=0> N; // sample size
+      int<lower=0> P; // number of covariates
+      int<lower=0> M; // number of classes
+      vector[P] x[N]; // covariates
+      vector[M] y[N]; // counts
+      matrix[M,P] beta;
+      real<lower=0> conc[M]; // concentration parameter
+      real residual_sigma;
+    }
+    parameters {
+      vector[M] residual[N];
+    }
+
+    model {
+      for (n in 1:N) {
+	vector[M] a;
+	real suma;
+	vector[M] aPlusY;
+	vector[M] lGaPlusY;
+	vector[M] lGaA ;
+	vector[M] s;
+
+        residual[n] ~ normal(0,residual_sigma);
+
+	s = softmax(beta * x[n] + residual[n]);
+	for (k in 1:M)
+	  a[k] = conc[k] * s[k];
+	// y ~ multinomial_dirichlet( conc * softmax(beta * x[n]) )
+	suma = sum(a);
+	aPlusY = a + y[n];
+	for (k in 1:M) {
+	  lGaPlusY[k] = lgamma(aPlusY[k]);
+	  lGaA[k] = lgamma(a[k]);
+	}
+	target += lgamma(suma)+sum(lGaPlusY)-lgamma(suma+sum(y[n]))-sum(lGaA);
+      }
+    }
+    """
+    file = f'{model_dir}/DM_model.beta_reparam.cov.residual.pkl'
     extra_compile_args = ['-pthread', '-DSTAN_THREADS']
     model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
     with open(file, 'wb') as f:
