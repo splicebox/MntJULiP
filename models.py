@@ -533,7 +533,7 @@ def run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_m
         p_value = 1 - chi2(M * (K - 1)).cdf(2 * (log_likelihood))
         sample_psis=None
         if sample_psi_model!=None:
-            lo_residuals=fit_sample_psi['par']['residual'] + np.dot(confounders.drop(confounders.columns[range(1,alt_col_n)],axis=1), pandas.DataFrame(beta).T.drop(range(1,alt_col_n)))
+            lo_residuals=fit_sample_psi['par']['residual'] + np.dot(confounders.drop(confounders.columns[range(2,alt_col_n)],axis=1), beta_T[:2])
             sample_psis=normalize((softmax(lo_residuals.T,normalize).T*fit_alt['par']['conc']).T)
         return p_value, log_likelihood, psis, sample_psis
 
