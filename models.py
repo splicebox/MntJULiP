@@ -59,9 +59,10 @@ def nb_add_q_values(diff_intron_dict, error_rate, method):
 ###############################################################################
 ## Zero inflated Negative Binomial model
 def NB_model(df, conditions, confounders, model_dir, num_workers=4, count=5, error_rate=0.05,
-             method='fdr_bh', batch_size=500, aggressive_mode=False):
+             method='fdr_bh', batch_size=500, aggressive_mode=False, sample_est_count_option=False, residual_sigma=10):
     diff_intron_dict = {}
     pred_intron_dict = {}
+    est_count_dict = {}
     coords_batches = []
     delayed_results = []
 
@@ -73,13 +74,13 @@ def NB_model(df, conditions, confounders, model_dir, num_workers=4, count=5, err
         ys.append(np.array(row_list[1:-1], dtype=np.int))
         coords.append(coord)
         if i > 0 and i % batch_size == 0:
-            delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, confounders, model_dir, count, aggressive_mode))
+            delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, confounders, model_dir, count, aggressive_mode, sample_est_count_option, residual_sigma))
             coords_batches.append(coords)
             coords = []
             ys = []
 
     if len(ys) > 0:
-        delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, confounders, model_dir, count, aggressive_mode))
+        delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, confounders, model_dir, count, aggressive_mode, sample_est_count_option, residual_sigma))
         coords_batches.append(coords)
 
     results_batches = list(compute(*delayed_results, traverse=False, num_workers=num_workers, scheduler="processes"))
@@ -87,26 +88,30 @@ def NB_model(df, conditions, confounders, model_dir, num_workers=4, count=5, err
     sig_coords = []
     for coords, results in zip(coords_batches, results_batches):
         for coord, result in zip(coords, results):
-            p_value, log_likelihood, mus, sigmas = result
+            p_value, log_likelihood, mus, sigmas, est_counts = result
             diff_intron_dict[coord] = [p_value, log_likelihood, mus, sigmas]
             pred_intron_dict[coord] = 'LO_DATA'
             if p_value is not None and np.any(mus >= 1):
                 sig_coords.append(coord)
                 pred_intron_dict[coord] = 'OK'
+            est_count_dict[coord]=est_counts
 
     df.loc[sig_coords, 'label'] = 1
 
     logging.info(f"{i+1} introns processed")
     nb_add_q_values(diff_intron_dict, error_rate, method)
 
-    return diff_intron_dict, pred_intron_dict
+    return diff_intron_dict, pred_intron_dict, est_count_dict
 
-def batch_run_NB_model(ys, conditions, confounders, model_dir, count, aggressive_mode):
+def batch_run_NB_model(ys, conditions, confounders, model_dir, count, aggressive_mode, sample_est_count_option, residual_sigma=10):
     null_model = pickle.load(open(Path(model_dir) / 'null_NB_model.cov.pkl', 'rb'))
     alt_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.cov.pkl', 'rb'))
+    sample_mu_model = None
+    if sample_est_count_option:
+        sample_mu_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.cov.residual.pkl', 'rb'))
     results = []
     for y in ys:
-        results.append(run_NB_model(y, conditions, confounders, count, null_model, alt_model, aggressive_mode))
+        results.append(run_NB_model(y, conditions, confounders, count, null_model, alt_model, sample_mu_model, aggressive_mode))
     return results
 
 
@@ -124,13 +129,14 @@ def custom_count(quantiles, means, aggressive_mode):
         return max(means)
 
 
-def run_NB_model(y, conditions, confounders, count, null_model, alt_model, aggressive_mode):
+def run_NB_model(y, conditions, confounders, count, null_model, alt_model, sample_mu_model, aggressive_mode, residual_sigma=10):
 
     N = y.shape[0]
     z = conditions
     K = z.shape[1]
     x_null=confounders.drop(confounders.columns[range(1,K-1+1)],axis=1)
     x_alt=confounders
+    alt_col_n=len(x_alt.columns)
     # init null model
     null_data_dict = {'N': N, 'y': y, 'mu_raw': custom_mean(y, aggressive_mode), 'P': len(x_null.columns), 'x': x_null}
 
@@ -151,7 +157,7 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, aggre
     _count = custom_count(quantiles, means, aggressive_mode)
     values = np.array(means) - np.array(_vars)
     if _count <= count and np.any(values < 0):
-        return None, None, np.array(means), np.array(_vars)
+        return None, None, np.array(means), np.array(_vars), None
 
     alt_data_dict = {'N': N, 'K': K, 'y': y, 'z': z, 'mu_raw': mu_raw, 'P': len(x_alt.columns), 'x': x_alt}
 
@@ -162,20 +168,40 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, aggre
             try:
                 fit_null = null_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5,init={'beta':[0 for _ in range(len(x_null.columns))]})
                 fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5,init={'beta': [[0 for _ in range(K)] for _ in range(len(x_alt.columns))]})
+                if sample_mu_model!=None:
+                    sample_mu_data_dict=alt_data_dict.copy()
+                    sample_mu_data_dict['beta']=fit_alt['par']['beta']
+                    sample_mu_data_dict['residual_sigma']=residual_sigma
+                    sample_mu_data_dict['reciprocal_phi']=fit_alt['par']['reciprocal_phi']
+                    sample_mu_data_dict['theta']=fit_alt['par']['theta']
+                    sample_mu_data_dict['mu']=fit_alt['par']['mu']
+                    j=0
+                    while j < max_optim_n:
+                        try:
+                            fit_sample_mu=sample_mu_model.optimizing(data=sample_mu_data_dict, as_vector=False, init=0)
+                        except RuntimeError:
+                            j += 1
+                            continue
+                        break
+                    if j == max_optim_n:
+                        sample_mu_model=None
             except RuntimeError:
                 i += 1
                 continue
             break
 
     if i == max_optim_n:
-        return None, None, np.array(means), None
+        return None, None, np.array(means), None, None
     else:
         log_likelihood = fit_alt['value'] - fit_null['value']
         mus = fit_alt['par']['mu']
         reciprocal_phi = fit_alt['par']['reciprocal_phi']
         sigmas = mus + mus * mus * reciprocal_phi
         p_value = 1 - chi2(3 * (K - 1)).cdf(2 * log_likelihood)
-    return p_value, log_likelihood, mus, sigmas
+        est_counts=None
+        if sample_mu_model!=None:
+            est_counts=(fit_sample_mu['par']['residual'] + z*sample_mu_data_dict['mu']  + z*np.dot(confounders.drop(confounders.columns[range(1,alt_col_n)],axis=1), pandas.DataFrame(sample_mu_data_dict['beta']).drop(range(1,alt_col_n)))).sum(axis=1)
+        return p_value, log_likelihood, mus, sigmas, est_counts
 
 
 def init_null_NB_cov_model(model_dir):
@@ -298,6 +324,76 @@ def init_alt_NB_cov_model(model_dir):
         pickle.dump(model, f)
 
 
+def init_alt_NB_cov_residual_model(model_dir):
+    code = """
+    data {
+        int<lower=1> N;
+        int<lower=1> P;
+        int<lower=1> K;
+        int<lower=0> y[N];
+        int<lower=0> z[N, K];
+        matrix[N,P] x;  
+        real<lower=0, upper=1> theta[K];
+        vector<lower=0>[K] mu;
+        vector<lower=1e-4>[K] reciprocal_phi;
+        matrix[P,K] beta;
+        real residual_sigma;
+    }
+    parameters {
+        vector[K] residual[N];
+    }
+    model {
+    matrix[N,K] a;
+
+        a=x*beta;
+        for (n in 1:N) {
+
+            vector[K] lps;
+
+            if (y[n] == 0){
+                for (k in 1:K){
+                    real mu_pos;
+
+                    residual[n]~normal(0,residual_sigma);
+
+                    if ((mu[k]+a[n,k]+residual[n][k])<=0){
+                    mu_pos=0+1e-4;
+                    }
+                    else{
+                    mu_pos=mu[k]+a[n,k]+residual[n][k];
+                    }
+                    lps[k] = log_sum_exp(bernoulli_lpmf(1 | theta[k]), bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi[k])));
+
+                    lps[k] *= z[n][k];
+                }
+            }
+            else{
+                for (k in 1:K) {
+                    real mu_pos;
+
+                    residual[n]~normal(0,mu[k]);
+
+                    if ((mu[k]+a[n,k]+residual[n][k])<=0){
+                    mu_pos=0+1e-4;
+                    }
+                    else{
+                    mu_pos=mu[k]+a[n,k]+residual[n][k];
+                    }
+                    lps[k] = bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi[k]));
+                    lps[k] *= z[n][k];
+                }
+            }
+            target += lps;
+        }
+    }
+    """
+    file = f'{model_dir}/alt_NB_model.cov.residual.pkl'
+    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
+    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
+    with open(file, 'wb') as f:
+        pickle.dump(model, f)
+
+
 def init_null_NB_model(model_dir):
     code = """
     data {
@@ -378,7 +474,7 @@ def init_alt_NB_model(model_dir):
 
 ###############################################################################
 def dm_add_q_values(diff_dm_group_dict, error_rate, method):
-    p_values = [v[1] for v in diff_dm_group_dict.values()]
+    p_values = [v[1] if v[1] != None else -1 for v in diff_dm_group_dict.values()]
     fdr_results = multitest.multipletests(p_values, alpha=error_rate, method=method)
     q_values = fdr_results[1].tolist()
 
@@ -456,15 +552,17 @@ def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, er
                 for coord, psi in zip(coords, psis):
                     diff_dm_intron_dict[coord].append((group_id, psi))
                 if sample_psi_option==True:
-                    for coord, sample_psi in zip(coords, sample_psis):
-                        diff_dm_sample_psi_dict[coord].append((group_id, sample_psi, p_value))
+                    try:
+                        for coord, sample_psi in zip(coords, sample_psis):
+                            diff_dm_sample_psi_dict[coord].append((group_id, sample_psi, p_value))
+                    except:
+                        pass
 
     logging.info(f"{i+1} groups processed")
     diff_dm_group_dict = dm_add_q_values(diff_dm_group_dict, error_rate, method)
     return diff_dm_intron_dict, diff_dm_group_dict, diff_dm_sample_psi_dict
 
-
-def batch_run_DM_model(ys, conditions, confounders, model_dir, aggressive_mode):
+def batch_run_DM_model(ys, conditions, confounders, model_dir, aggressive_mode, sample_psi_option=False, residual_sigma=10):
     null_model = None
     alt_model = pickle.load(open(Path(model_dir) / 'DM_model.beta_reparam.cov.pkl', 'rb'))
     sample_psi_model = None
@@ -489,11 +587,11 @@ def run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_m
         #conc = np.sum(np.mean(y, axis=0))
         #conc_raw, conc_std = conc, np.sqrt(conc/10) + 1e-4
 
-    null_data_dict = {'N': N, 'M': M, 'y': y, 'P': len(x_null.columns), 'x': x_null, 'concShape': 1.0001, 'concRate': 1e-4}
+    null_data_dict = {'N': N, 'M': M, 'y': y, 'P': len(x_null.columns), 'x': x_null, 'conc_shape': 1.0001, 'conc_rate': 1e-4}
 
-    alt_data_dict = {'N': N, 'K': K, 'M': M, 'y': y, 'P': alt_col_n, 'x': x_alt, 'concShape': 1.0001, 'concRate': 1e-4}
+    alt_data_dict = {'N': N, 'M': M, 'y': y, 'P': alt_col_n, 'x': x_alt, 'conc_shape': 1.0001, 'conc_rate': 1e-4}
 
-    max_optim_n=10
+    max_optim_n=100
     with suppress_stdout_stderr():
         i = 0
         while i < max_optim_n:
@@ -506,7 +604,17 @@ def run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_m
                     sample_psi_data_dict['beta']=beta
                     sample_psi_data_dict['conc']=fit_alt['par']['conc']
                     sample_psi_data_dict['residual_sigma']=residual_sigma
-                    fit_sample_psi=sample_psi_model.optimizing(data=sample_psi_data_dict, as_vector=False,  verbose=True, init=0)
+                    j=0
+                    while j < max_optim_n:
+                        try:
+                            fit_sample_psi=sample_psi_model.optimizing(data=sample_psi_data_dict, as_vector=False,  verbose=True, init=0)
+                        except RuntimeError:
+                            j += 1
+                            continue
+                        break
+                    if j == max_optim_n:
+                        sample_psi_model=None
+                        #print('opt fail')
 
             except RuntimeError:
                 i += 1
@@ -532,9 +640,10 @@ def run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_m
         psis = np.array(psi_list).T.tolist()
         p_value = 1 - chi2(M * (K - 1)).cdf(2 * (log_likelihood))
         sample_psis=None
+
         if sample_psi_model!=None:
-            lo_residuals=fit_sample_psi['par']['residual'] + np.dot(confounders.drop(confounders.columns[range(1,full_col_n)],axis=1), pandas.DataFrame(beta).T.drop(range(1,full_col_n)))
-            sample_psis=normalize((softmax(lo_residuals.T,normalize).T*fit_alt['par']['conc']).T)
+            lo_residuals=fit_sample_psi['par']['residual'] + np.dot(confounders.drop(confounders.columns[range(2,alt_col_n)],axis=1), beta_T[:2])
+            sample_psis=normalize( (softmax(lo_residuals.T,normalize).T * fit_alt['par']['conc']).T )
         return p_value, log_likelihood, psis, sample_psis
 
 def init_null_DM_cov_model(model_dir):
@@ -660,9 +769,9 @@ def init_DM_beta_reparam_cov_model(model_dir):
 
     model {
       matrix[M,P] beta;
-      for (k in 1:M)
+      for (m in 1:M)
 	for (p in 1:P)
-	  beta[k,p] = beta_scale[p] * (beta_raw[p][k] - 1.0 / M);
+	  beta[m,p] = beta_scale[p] * (beta_raw[p][m] - 1.0 / M);
 
       conc ~ gamma(conc_shape, conc_rate);
       for (n in 1:N) {
@@ -673,8 +782,8 @@ def init_DM_beta_reparam_cov_model(model_dir):
 	vector[M] lGaA ;
 	vector[M] s;
 	s = softmax(beta * x[n]);
-	for (k in 1:M)
-	  a[k] = conc[k] * s[k];
+	for (m in 1:M)
+	  a[m] = conc[m] * s[m];
 	// y ~ multinomial_dirichlet( conc * softmax(beta * x[n]) )
 	suma = sum(a);
 	aPlusY = a + y[n];

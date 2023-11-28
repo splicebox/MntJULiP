@@ -75,6 +75,7 @@ optional arguments:
   --out-dir OUT_DIR     output folder to store the results and temporary files (default: ./out)
   --num-threads NUM_THREADS
                         number of CPU cores use to run the program (default: 4)
+  --sample-psi-option   output sample-level psis.
   -v, --version         show program's version number and exit
   -h, --help            show this help message and exit
 ```

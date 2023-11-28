@@ -54,6 +54,8 @@ def get_arguments():
                         help='set MnutJULiP to aggressive mode for highly dispersed data (e.g. cancer data).')
     advanced_args.add_argument('--sample-psi-option', action='store_true', default=False,
                         help='output sample-level psis.')
+    advanced_args.add_argument('--sample-est-count-option', action='store_true', default=False,
+                        help='output sample-level estimated counts.')
     advanced_args.add_argument('--method', type=str, default='fdr_bh',
                         help=textwrap.dedent('''\
     method used for testing and adjustment of p-values (default: 'fdr_bh')
@@ -94,6 +96,7 @@ def main():
     group_filter = args.group_filter
     aggressive_mode = args.aggressive_mode
     sample_psi_option = args.sample_psi_option
+    sample_est_count_option = args.sample_est_count_option
 
 
     if args.splice_list:
@@ -128,10 +131,10 @@ def main():
 
     logging.info('Fitting Negative Binomial models ...')
     start_time = time.time()
-    diff_nb_intron_dict, pred_intron_dict = NB_model(df, conditions, confounders, model_dir,
+    diff_nb_intron_dict, pred_intron_dict, est_count_dict = NB_model(df, conditions, confounders, model_dir,
                                              num_workers=num_threads, count=count, error_rate=error_rate,
-                                             method=method, batch_size=batch_size, aggressive_mode=aggressive_mode)
-    #TODO currently perform DM on all introns
+                                             method=method, batch_size=batch_size, aggressive_mode=aggressive_mode, sample_est_count_option=sample_est_count_option)
+    #  currently perform DM on all introns
     df['label']=1
     logging.info(f'Finished! Took {time.time() - start_time:0.2f} seconds.')
 
@@ -144,7 +147,7 @@ def main():
     logging.info(f'Finished! Took {time.time() - start_time:0.2f} seconds.')
 
     logging.info('Writing results ...')
-    write_pred_intron_file(df, conditions, labels, pred_intron_dict, out_dir, anno_info)
+    write_pred_intron_file(df, conditions, labels, pred_intron_dict, out_dir, est_count_dict, anno_info)
     write_diff_nb_intron_file(labels, diff_nb_intron_dict, out_dir, anno_info, debug=debug)
     write_diff_dm_intron_file(labels, diff_dm_intron_dict, out_dir, anno_info)
     write_diff_dm_group_file(diff_dm_group_dict, out_dir, anno_info)

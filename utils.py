@@ -46,16 +46,15 @@ def get_conditions(file_df):
         else:
             return pd.get_dummies(x[col]).iloc[:,1:]
     conditions = pd.get_dummies(file_df['condition'])
-    conditions_coefficients = conditions.iloc[:,1:]
+    beta = conditions.iloc[:,1:]
     labels = conditions.columns.values.tolist()
     confounders=file_df.iloc[:,2:]  # exclude 1st,2nd col: paths,conditions
     sc = StandardScaler()
     for i in range(len(confounders.columns)):
         col=confounders.columns[i]
-        conditions_coefficients=conditions_coefficients.join(scale_col(confounders[[col]],col,i),rsuffix=f'_{col}')
-    conditions_coefficients.insert(0,"intercept",1)
-    print(conditions_coefficients.iloc[:,1:])
-    return conditions.values, labels, conditions_coefficients
+        beta=beta.join(scale_col(confounders[[col]],col,i),rsuffix=f'_{col}')
+    beta.insert(0,"intercept",1)
+    return conditions.values, labels, beta
 
 
 def generate_splice_data(work_dir, out_dir, filename, bam_file, save_tmp):
@@ -264,17 +263,20 @@ def get_gene_names(anno_info, coord):
     return ','.join(gene_names) if gene_names else '.'
 
 
-def write_pred_intron_file(df, conditions, labels, pred_intron_dict, out_dir, anno_info=None):
+def write_pred_intron_file(df, conditions, labels, pred_intron_dict, out_dir, est_count_dict, anno_info=None):
     file = out_dir / 'intron_data.txt'
     _list = ['chrom', 'start', 'end', 'strand', 'gene_name', 'status']
     indices = []
     for i, label in enumerate(labels):
         indices.append(np.where(conditions[:, i] > 0)[0])
         _list.append(f"read_counts({label})")
+    for i in labels:
+        _list.append(f"est_counts({label})")
 
     with open(file, 'w') as f:
         f.write('\t'.join(_list) + '\n')
         rows = df.values.tolist()
+        est_count_rows = pd.DataFrame(est_count_dict).T.values.tolist()
         coordinates = df.index.tolist()
         for i in range(len(rows)):
             row_list = rows[i]
@@ -284,6 +286,10 @@ def write_pred_intron_file(df, conditions, labels, pred_intron_dict, out_dir, an
             _list = [_chr, str(start), str(end), strand, gene_names, pred_intron_dict[coord]]
             y = np.array(row_list[:-1], dtype=np.int)
             _list += [','.join(np.take(y, i).astype(str).tolist()) for i in indices]
+            est_y = est_count_rows[i]
+            if None not in est_y:
+                est_y = np.around(est_y, 6)
+            _list += [','.join(np.take(est_y, i).astype(str).tolist()) for i in indices]
             f.write('\t'.join(_list) + '\n')
 
 
@@ -353,6 +359,7 @@ def write_diff_dm_sample_psi_file(conditions, labels, diff_dm_sample_psi_dict, o
         for coord, values in diff_dm_sample_psi_dict.items():
             for value in values:
                 group_id, sample_psi, p_value = value
+                sample_psi = np.around(sample_psi, 6)
                 gene_names = get_gene_names(anno_info, coord) if anno_info else '.'
                 status = 'TEST' if p_value is not None else 'NO_TEST'
                 _chr, strand, start, end = coord
@@ -389,12 +396,15 @@ def write_diff_dm_group_file(diff_dm_group_dict, out_dir, anno_info=None):
             _chr, strand, loc, structure = group
             group_id, p_value, log_likelihood, intron_coords, q_value = value
             gene_names = get_group_gene_names(group, intron_coords, anno_info) if anno_info else '.'
-            if p_value:
+            try:
                 _list = [group_id, _chr, str(loc), strand, gene_names, structure,
                         f"{log_likelihood:.6g}", f"{p_value:.6g}", f"{q_value:.6g}"]
-            else:
-                _list = [group_id, _chr, str(loc), strand, gene_names, structure,
-                        "", "", ""]
+            except:
+                pass
+            #    print(intron_coords)
+            #else:
+            #    _list = [group_id, _chr, str(loc), strand, gene_names, structure,
+            #            "", "", ""]
             f.write('\t'.join(_list) + '\n')
 
 
