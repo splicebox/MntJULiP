@@ -270,7 +270,7 @@ def write_pred_intron_file(df, conditions, labels, pred_intron_dict, out_dir, es
     for i, label in enumerate(labels):
         indices.append(np.where(conditions[:, i] > 0)[0])
         _list.append(f"read_counts({label})")
-    for i in labels:
+    for label in labels:
         _list.append(f"est_counts({label})")
 
     with open(file, 'w') as f:
