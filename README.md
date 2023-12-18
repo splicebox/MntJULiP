@@ -1,6 +1,6 @@
 ## MntJULiP ##
 
-MntJULiP is a progream for comprehensively and accurately quantifying splicing differences at intron level from collections of RNA-seq data. MntJULiP detects both differences in intron abundance levels, herein called differential splicing abundance (DSA), and differences in intron splicing ratios relative to the local gene output, termed differential splicing ratio (DSR). MntJULiP uses a Bayesian mixture model that allows comparison of multiple conditions, and can model the effects of covariates to enable analyses of large and complex  population data. 
+MntJULiP is a program for comprehensively and accurately quantifying splicing differences at intron level from collections of RNA-seq data. MntJULiP detects both differences in intron abundance levels, or differential splicing abundance (DSA), and differences in intron splicing ratios relative to the local gene output, or differential splicing ratio (DSR). MntJULiP uses a Bayesian mixture model that allows comparison of multiple conditions, and can model the effects of covariates to enable analyses of large and complex human data from disease cohorts and population studies. 
 
 Described in:
 
