@@ -208,13 +208,13 @@ chrom   start   end     strand  gene_name       status  read_counts(control)    
 chr1    3207317 3213439 -       Xkr4    OK      76,26,66,51,45,62,22,8,96,60,105,8,60,89,71,77,79,47,29,16,52,98,86,23  26,61,44,34,92,51,55,24,51,25,23,20,89,29,19,39,97,51,5,43
 chr1    3207317 3213609 -       Xkr4    LO_DATA 1,0,2,1,1,2,1,2,4,3,2,0,4,3,5,2,1,0,1,0,3,2,3,1 1,0,0,3,1,2,1,0,1,1,3,0,3,1,0,1,0,0,1,3
 ```
-It lists all introns individually along with their genomic location, status of the test (*OK* or *LO_DATA*), the raw read counts for the intron in all samples, and the model fitted read counts, grouped by condition. This information can be used, for instance, to further filter introns with low support across all or subsets of the samples, or from genes with low expression levels, or can be used to generate [visualizations](#visualization) such as heatmaps or PCA plots.
+It lists all introns individually along with their genomic location, status of the test (*OK* or *LO_DATA*), the raw read counts for the intron in all samples, and the model fitted read counts, grouped by condition. If the '--raw-counts-only' option is used, only _raw_ read counts are reported. This information can be used, for instance, to further filter introns with low support across all or subsets of the samples, or from genes with low expression levels, or can be used to generate [visualizations](#visualization) such as heatmaps or PCA plots.
 
 The file *group_data.txt* contains supporting data for all introns in groups tested by MntJULiP.
 ```
 examples
 ```
-It lists all introns in a group, on separate lines, along with their genomic location, status of the test (*OK* or *LO_DATA*), and per sample PSI values, both calculated from the raw read counts and estimated by the model, separated by condition. As with intron data, this information can be used to filter low ratio isoforms or to generate [visualizations](#visualization).
+It lists all introns in a group, on separate lines, along with their genomic location, status of the test (*OK* or *LO_DATA*), and per sample PSI values, both calculated from the raw read counts and estimated by the model, separated by condition. If the '--raw-counts-only' option is used, only PSI values calculated from the _raw_ read counts are reported. As with intron data, this information can be used to filter low ratio isoforms or to generate [visualizations](#visualization).
 
 ### <a name="visualization"></a> Visualization
 
