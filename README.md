@@ -11,7 +11,7 @@ Described in:
 For the original version of MntJULiP, please refer to the [master](https://github.com/splicebox/MntJULiP/tree/master) branch.
 
 ```
-Copyright (C) 2019-2023, and GNU GPL v3.0, by Guangyu Yang, Wui Wang Lui, Liliana Florea
+Copyright (C) 2019-2023, and GNU GPL v3.0, by †Guangyu Yang, †Wui Wang Lui, Liliana Florea († equal contributors)
 ```
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.  
@@ -84,7 +84,7 @@ optional arguments:
   --out-dir OUT_DIR     output folder to store the results and temporary files (default: ./out)
   --num-threads NUM_THREADS
                         number of CPU cores use to run the program (default: 4)
-  --sample-psi-option   output sample-level psis
+  --raw-counts-only     output sample-level raw values only (default: both raw and estimated values)
   -v, --version         show program's version number and exit
   -h, --help            show this help message and exit
 ```
