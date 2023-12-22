@@ -61,7 +61,7 @@ MntJULiP has the following dependencies:
 The required packages may be installed using conda:
 ```
 cd MnJULiP
-conda env create -f mntjulip2.yml
+conda env create -f mntjulip_cov.yml
 #  run setup.py to install MntJULiP and all the required packages
 module load cmake
 python3 setup.py install  
