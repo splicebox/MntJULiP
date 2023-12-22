@@ -270,13 +270,15 @@ def write_pred_intron_file(df, conditions, labels, pred_intron_dict, out_dir, es
     for i, label in enumerate(labels):
         indices.append(np.where(conditions[:, i] > 0)[0])
         _list.append(f"read_counts({label})")
-    for label in labels:
-        _list.append(f"est_counts({label})")
+
+    if est_count_dict!=None:
+        for label in labels:
+            _list.append(f"est_counts({label})")
+        est_count_rows = pd.DataFrame(est_count_dict).T.values.tolist()
 
     with open(file, 'w') as f:
         f.write('\t'.join(_list) + '\n')
         rows = df.values.tolist()
-        est_count_rows = pd.DataFrame(est_count_dict).T.values.tolist()
         coordinates = df.index.tolist()
         for i in range(len(rows)):
             row_list = rows[i]
@@ -286,10 +288,11 @@ def write_pred_intron_file(df, conditions, labels, pred_intron_dict, out_dir, es
             _list = [_chr, str(start), str(end), strand, gene_names, pred_intron_dict[coord]]
             y = np.array(row_list[:-1], dtype=np.int)
             _list += [','.join(np.take(y, i).astype(str).tolist()) for i in indices]
-            est_y = est_count_rows[i]
-            if None not in est_y:
-                est_y = np.around(est_y, 6)
-            _list += [','.join(np.take(est_y, i).astype(str).tolist()) for i in indices]
+            if est_count_dict!=None:
+                est_y = est_count_rows[i]
+                if None not in est_y:
+                    est_y = np.around(est_y, 6)
+                _list += [','.join(np.take(est_y, i).astype(str).tolist()) for i in indices]
             f.write('\t'.join(_list) + '\n')
 
 
@@ -345,7 +348,7 @@ def write_diff_dm_intron_file(labels, diff_dm_intron_dict, out_dir, anno_info=No
                     _list += [f"{dpsi:.6g}"]
                 f.write('\t'.join(_list) + '\n')
 
-def write_diff_dm_sample_psi_file(conditions, labels, diff_dm_sample_psi_dict, out_dir, anno_info=None):
+def write_diff_dm_group_data_file(df, conditions, labels, diff_dm_group_dict, diff_dm_sample_psi_dict, out_dir, anno_info=None, sample_psi_option=False):
     file = out_dir / 'group_data.txt'
     _list = ['group_id', 'chrom', 'start', 'end', 'strand', 'gene_name', 'status']
 
@@ -353,18 +356,31 @@ def write_diff_dm_sample_psi_file(conditions, labels, diff_dm_sample_psi_dict, o
     for i, label in enumerate(labels):
         indices.append(np.where(conditions[:, i] > 0)[0])
         _list.append(f"psi_values({label})")
+    if sample_psi_option==True:
+        for i, label in enumerate(labels):
+            _list.append(f"est_psi_values({label})")
+
+    _df = df.drop(['label'], axis=1)
 
     with open(file, 'w') as f:
         f.write('\t'.join(_list) + '\n')
-        for coord, values in diff_dm_sample_psi_dict.items():
-            for value in values:
-                group_id, sample_psi, p_value = value
-                sample_psi = np.around(sample_psi, 6)
-                gene_names = get_gene_names(anno_info, coord) if anno_info else '.'
-                status = 'TEST' if p_value is not None else 'NO_TEST'
-                _chr, strand, start, end = coord
-                _list = [group_id, _chr, str(start), str(end), strand, gene_names, status] + [','.join(np.take(sample_psi, i).astype(str).tolist()) for i in indices]
-                f.write('\t'.join(_list) + '\n')
+        for start_coord, group_info in diff_dm_group_dict.items():
+            group_coords=group_info[3]
+            group_df=_df.loc[group_coords]
+            group_psi=group_df/group_df.sum()
+            for coord in group_coords:
+                for group_sample_psi in diff_dm_sample_psi_dict[coord]:
+                    raw_psi=group_psi.loc[[coord]].values[0]
+                    raw_psi=np.around(raw_psi,6)
+                    group_id, sample_psi, p_value = group_sample_psi
+                    gene_names = get_gene_names(anno_info, coord) if anno_info else '.'
+                    status = 'TEST' if p_value is not None else 'NO_TEST'
+                    _chr, strand, start, end = coord
+                    _list = [group_id, _chr, str(start), str(end), strand, gene_names, status] + [','.join(np.take(raw_psi, i).astype(str).tolist()) for i in indices]
+                    if sample_psi_option==True:
+                        sample_psi = np.around(sample_psi, 6)
+                        _list+=[','.join(np.take(sample_psi, i).astype(str).tolist()) for i in indices]
+                    f.write('\t'.join(_list) + '\n')
 
 
 def get_group_gene_names(group, intron_coords, anno_info):

@@ -19,7 +19,7 @@ from utils import get_bam_file_dataframe, get_conditions
 from utils import generate_splice_files, get_splice_file_dataframe
 from utils import process_annotation, process_introns_with_annotation
 from utils import process_introns
-from utils import write_pred_intron_file, write_diff_nb_intron_file, write_diff_dm_intron_file, write_diff_dm_group_file, write_diff_dm_sample_psi_file
+from utils import write_pred_intron_file, write_diff_nb_intron_file, write_diff_dm_intron_file, write_diff_dm_group_file, write_diff_dm_group_data_file
 from models import NB_model, DM_model
 
 
@@ -52,10 +52,8 @@ def get_arguments():
     advanced_args.add_argument('--debug', action='store_true', default=False, help='Debug mode for showing more information.')
     advanced_args.add_argument('--aggressive-mode', action='store_true', default=False,
                         help='set MnutJULiP to aggressive mode for highly dispersed data (e.g. cancer data).')
-    advanced_args.add_argument('--sample-psi-option', action='store_true', default=False,
-                        help='output sample-level psis.')
-    advanced_args.add_argument('--sample-est-count-option', action='store_true', default=False,
-                        help='output sample-level estimated counts.')
+    advanced_args.add_argument('--raw-counts-only', action='store_true', default=False,
+                        help='output of raw counts only.')
     advanced_args.add_argument('--method', type=str, default='fdr_bh',
                         help=textwrap.dedent('''\
     method used for testing and adjustment of p-values (default: 'fdr_bh')
@@ -95,8 +93,10 @@ def main():
     debug = args.debug
     group_filter = args.group_filter
     aggressive_mode = args.aggressive_mode
-    sample_psi_option = args.sample_psi_option
-    sample_est_count_option = args.sample_est_count_option
+    sample_psi_option, sample_est_count_option = True, True
+    if args.raw_counts_only:
+        sample_psi_option, sample_est_count_option = False, False
+    
 
 
     if args.splice_list:
@@ -134,8 +134,6 @@ def main():
     diff_nb_intron_dict, pred_intron_dict, est_count_dict = NB_model(df, conditions, confounders, model_dir,
                                              num_workers=num_threads, count=count, error_rate=error_rate,
                                              method=method, batch_size=batch_size, aggressive_mode=aggressive_mode, sample_est_count_option=sample_est_count_option)
-    #  currently perform DM on all introns
-    df['label']=1
     logging.info(f'Finished! Took {time.time() - start_time:0.2f} seconds.')
 
     logging.info('Fitting Dirichlet Multinomial models ...')
@@ -151,8 +149,7 @@ def main():
     write_diff_nb_intron_file(labels, diff_nb_intron_dict, out_dir, anno_info, debug=debug)
     write_diff_dm_intron_file(labels, diff_dm_intron_dict, out_dir, anno_info)
     write_diff_dm_group_file(diff_dm_group_dict, out_dir, anno_info)
-    if sample_psi_option==True:
-        write_diff_dm_sample_psi_file(conditions, labels, diff_dm_sample_psi_dict, out_dir, anno_info)
+    write_diff_dm_group_data_file(df, conditions, labels, diff_dm_group_dict, diff_dm_sample_psi_dict, out_dir, anno_info, sample_psi_option)
 
     if not save_tmp:
         shutil.rmtree(out_data_dir)

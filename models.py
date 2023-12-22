@@ -62,7 +62,10 @@ def NB_model(df, conditions, confounders, model_dir, num_workers=4, count=5, err
              method='fdr_bh', batch_size=500, aggressive_mode=False, sample_est_count_option=False, residual_sigma=10):
     diff_intron_dict = {}
     pred_intron_dict = {}
-    est_count_dict = {}
+    if sample_est_count_option==True:
+        est_count_dict = {}
+    else:
+        est_count_dict = None
     coords_batches = []
     delayed_results = []
 
@@ -94,7 +97,8 @@ def NB_model(df, conditions, confounders, model_dir, num_workers=4, count=5, err
             if p_value is not None and np.any(mus >= 1):
                 sig_coords.append(coord)
                 pred_intron_dict[coord] = 'OK'
-            est_count_dict[coord]=est_counts
+            if sample_est_count_option==True:
+                est_count_dict[coord]=est_counts
 
     df.loc[sig_coords, 'label'] = 1
 
@@ -161,7 +165,7 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, sampl
 
     alt_data_dict = {'N': N, 'K': K, 'y': y, 'z': z, 'mu_raw': mu_raw, 'P': len(x_alt.columns), 'x': x_alt}
 
-    max_optim_n=100
+    max_optim_n=50
     with suppress_stdout_stderr():
         i = 0
         while i < max_optim_n:
@@ -496,7 +500,12 @@ def get_splice_site_groups(intron_coords):
 ## Dirichlet Multinomial model
 def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, error_rate=0.05,
             method='fdr_bh', batch_size=1000, group_filter=0, aggressive_mode=False, sample_psi_option=False, residual_sigma=10):
-    _df = df[df['label'] == 1].drop(['label'], axis=1)
+    
+    _df = df.drop(['label'], axis=1)
+    _df_dmfilter = df[df['label'] == 1].drop(['label'], axis=1)
+    indices_dmfilter=_df_dmfilter.index.tolist()
+    _index_df_dmfilter = index_df.loc[index_df['index'].isin(indices_dmfilter)]
+
     diff_dm_intron_dict = defaultdict(list)
     diff_dm_sample_psi_dict = defaultdict(list)
 
@@ -515,10 +524,16 @@ def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, er
     ys = []
     groups = []
     coords = []
+    coords_dmfilter = []
     for _chr in chrs:
         strands = list(_index_df.loc[_chr].index.unique(level='strand'))
         for strand in strands:
             group_dict = get_splice_site_groups(_index_df.loc[_chr].loc[strand]['index'].tolist())
+            try:
+                group_dict_dmfilter = get_splice_site_groups(_index_df_dmfilter.loc[_chr].loc[strand]['index'].tolist())
+                coords_dmfilter.extend(group_dict_dmfilter.values())
+            except KeyError:
+                pass
             for group, intron_coords in group_dict.items():
                 if len(intron_coords) > 1:
                     group_df = _df.loc[intron_coords]
@@ -551,7 +566,10 @@ def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, er
             if psis:
                 for coord, psi in zip(coords, psis):
                     diff_dm_intron_dict[coord].append((group_id, psi))
-                if sample_psi_option==True:
+                if coords in coords_dmfilter:
+                    if sample_psi_option==False:
+                        for coord in coords:
+                            diff_dm_sample_psi_dict[coord].append((group_id, None, p_value))
                     try:
                         for coord, sample_psi in zip(coords, sample_psis):
                             diff_dm_sample_psi_dict[coord].append((group_id, sample_psi, p_value))
