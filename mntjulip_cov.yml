@@ -1,4 +1,4 @@
-name: mntj
+name: mj-cov
 channels:
   - anaconda
   - conda-forge
