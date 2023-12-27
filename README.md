@@ -11,7 +11,7 @@ Described in:
 For the original version of MntJULiP, please refer to the [original](https://github.com/splicebox/MntJULiP/tree/master-original) branch.
 
 ```
-Copyright (C) 2019-2023, and GNU GPL v3.0, by †Guangyu Yang, †Wui Wang Lui, Liliana Florea († equal contributors)
+Copyright (C) 2019-2024, and GNU GPL v3.0, by †Guangyu Yang, †Wui Wang Lui, Liliana Florea († equal contributors)
 ```
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.  
