@@ -8,7 +8,7 @@ Described in:
 - Lui WW, Yang G, and Florea L (2023). MntJULiP and Jutils: Differential splicing analysis of RNA-seq data with covariates. *Submitted.*
 
 
-For the original version of MntJULiP, please refer to the [master](https://github.com/splicebox/MntJULiP/tree/master) branch.
+For the original version of MntJULiP, please refer to the [original](https://github.com/splicebox/MntJULiP/tree/master-original) branch.
 
 ```
 Copyright (C) 2019-2023, and GNU GPL v3.0, by †Guangyu Yang, †Wui Wang Lui, Liliana Florea († equal contributors)
