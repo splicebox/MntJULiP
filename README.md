@@ -204,17 +204,19 @@ Introns that are differentially spliced by the DSA test can be determined direct
 
 The file *intron_data.txt* contains supporting data for all introns detected by MntJULiP that passed the initial internal quality filters.
 ```
-chrom   start   end     strand  gene_name       status  read_counts(control)    read_counts(epileptic)
-chr1    3207317 3213439 -       Xkr4    OK      76,26,66,51,45,62,22,8,96,60,105,8,60,89,71,77,79,47,29,16,52,98,86,23  26,61,44,34,92,51,55,24,51,25,23,20,89,29,19,39,97,51,5,43
-chr1    3207317 3213609 -       Xkr4    LO_DATA 1,0,2,1,1,2,1,2,4,3,2,0,4,3,5,2,1,0,1,0,3,2,3,1 1,0,0,3,1,2,1,0,1,1,3,0,3,1,0,1,0,0,1,3
+chrom   start   end     strand  gene_name       status  read_counts(0)    read_counts(1)  est_counts(0)  est_counts(1)
+chr1    966803  970277  +       PLEKHN1    OK      9,7,7,9,21   3,16,15,17,22   11.473772,9.75089,9.75089,11.473772,17.631809   11.957485,16.183491,15.404332,16.943721,20.49379
+chr1    970621  1054485 +       PLEKHN1    LO_DATA 1,0,2,0,0    0,0,1,0,0       None,None,None,None,None        None,None,None,None,None
 ```
-It lists all introns individually along with their genomic location, status of the test (*OK* or *LO_DATA*), the raw read counts for the intron in all samples, and the model fitted read counts, grouped by condition. If the '--raw-counts-only' option is used, only _raw_ read counts are reported. This information can be used, for instance, to further filter introns with low support across all or subsets of the samples, or from genes with low expression levels, or can be used to generate [visualizations](#visualization) such as heatmaps or PCA plots.
+It lists all introns individually along with their genomic location, status of the test (*OK* or *LO_DATA*), the raw read counts for the intron in all samples, and the model fitted read counts, grouped by condition. If the '--raw-counts-only' option is used, only _raw_ read counts are reported (n.b., this option is compatible with versions of MntJULiP before 1.5). This information can be used, for instance, to further filter introns with low support across all or subsets of the samples, or from genes with low expression levels, or can be used to generate [visualizations](#visualization) such as heatmaps or PCA plots.
 
 The file *group_data.txt* contains supporting data for all introns in groups tested by MntJULiP.
 ```
-examples
+group_id        chrom   start   end     strand  gene_name       status  psi_values(0)   psi_values(1)   est_psi_values(0)       est_psi_values(1)
+g000001 chr1    971006  971077  +       PLEKHN1 TEST    0.25,0.333333,0.375,0.666667,0.458333   0.454545,0.5,0.44,0.333333,0.478261     0.274425,0.361496,0.404335,0.692248,0.458361    0.484908,0.499894,0.440096,0.333756,0.478239
+g000001 chr1    971006  971113  +       PLEKHN1 TEST    0.75,0.666667,0.625,0.333333,0.541667   0.545455,0.5,0.56,0.666667,0.521739     0.725575,0.638504,0.595665,0.307752,0.541639    0.515092,0.500106,0.559904,0.666244,0.521761
 ```
-It lists all introns in a group, on separate lines, along with their genomic location, status of the test (*OK* or *LO_DATA*), and per sample PSI values, both calculated from the raw read counts and estimated by the model, separated by condition. If the '--raw-counts-only' option is used, only PSI values calculated from the _raw_ read counts are reported. As with intron data, this information can be used to filter low ratio isoforms or to generate [visualizations](#visualization).
+It lists all introns in a group, on separate lines, along with their genomic location, status of the test (*TEST* or *LO_DATA*), and per sample PSI values, both calculated from the raw read counts and estimated by the model, separated by condition. If the '--raw-counts-only' option is used, only PSI values calculated from the _raw_ read counts are reported. This file is new in MntJULiP starting with release 1.5. As with intron data, this information can be used to filter low ratio isoforms or to generate [visualizations](#visualization).
 
 ### <a name="visualization"></a> Visualization
 
