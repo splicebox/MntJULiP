@@ -8,9 +8,9 @@ Yang G, Sabunciyan S, and Florea L (2022). Comprehensive and scalable quantifica
 
 Data described in the article can be found [here](http://ccb.jhu.edu/software/MntJULiP/). Supplementary [scripts](https://github.com/splicebox/MntJULiP/blob/master/MntJULiP_scripts.tar.gz) are provided with this distribution. 
 
-The main branch contains the stable code, and an in-progress (beta) version that incorporates the treatment of covariates is in the [covariate](https://github.com/splicebox/MntJULiP/tree/covariate) branch.
+This branch contains the original code, described in the above publication, while the current active version that incorporates the treatment of covariates is in the [covariate](https://github.com/splicebox/MntJULiP/tree/master-covariate) branch.
 ```
-Copyright (C) 2019-2023, and GNU GPL v3.0, by Guangyu Yang, Wui Wang Lui, Liliana Florea
+Copyright (C) 2019-2024, and GNU GPL v3.0, by Guangyu Yang, Wui Wang Lui, Liliana Florea
 ```
 
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.  
