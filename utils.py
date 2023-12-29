@@ -370,17 +370,19 @@ def write_diff_dm_group_data_file(df, conditions, labels, diff_dm_group_dict, di
             group_psi=group_df/group_df.sum()
             for coord in group_coords:
                 for group_sample_psi in diff_dm_sample_psi_dict[coord]:
-                    raw_psi=group_psi.loc[[coord]].values[0]
-                    raw_psi=np.around(raw_psi,6)
-                    group_id, sample_psi, p_value = group_sample_psi
-                    gene_names = get_gene_names(anno_info, coord) if anno_info else '.'
-                    status = 'TEST' if p_value is not None else 'NO_TEST'
-                    _chr, strand, start, end = coord
-                    _list = [group_id, _chr, str(start), str(end), strand, gene_names, status] + [','.join(np.take(raw_psi, i).astype(str).tolist()) for i in indices]
-                    if sample_psi_option==True:
-                        sample_psi = np.around(sample_psi, 6)
-                        _list+=[','.join(np.take(sample_psi, i).astype(str).tolist()) for i in indices]
-                    f.write('\t'.join(_list) + '\n')
+                    #  if match group id
+                    if group_sample_psi[0] == group_info[0]:
+                        raw_psi=group_psi.loc[[coord]].values[0]
+                        raw_psi=np.around(raw_psi,6)
+                        group_id, sample_psi, p_value = group_sample_psi
+                        gene_names = get_gene_names(anno_info, coord) if anno_info else '.'
+                        status = 'TEST' if p_value is not None else 'NO_TEST'
+                        _chr, strand, start, end = coord
+                        _list = [group_id, _chr, str(start), str(end), strand, gene_names, status] + [','.join(np.take(raw_psi, i).astype(str).tolist()) for i in indices]
+                        if sample_psi_option==True:
+                            sample_psi = np.around(sample_psi, 6)
+                            _list+=[','.join(np.take(sample_psi, i).astype(str).tolist()) for i in indices]
+                        f.write('\t'.join(_list) + '\n')
 
 
 def get_group_gene_names(group, intron_coords, anno_info):
