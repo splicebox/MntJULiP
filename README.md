@@ -44,7 +44,7 @@ git clone https://github.com/splicebox/MntJULiP.git
 ```
 
 #### System requirement
-* Linux or Mac   
+* Linux
 * Python 3.7 or later
 * gcc 6.4.0 or later
 

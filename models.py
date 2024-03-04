@@ -69,6 +69,7 @@ def NB_model(df, conditions, confounders, model_dir, num_workers=4, count=5, err
     coords_batches = []
     delayed_results = []
 
+
     ys = []
     coords = []
     for i, row in enumerate(df.itertuples()):
@@ -112,7 +113,10 @@ def batch_run_NB_model(ys, conditions, confounders, model_dir, count, aggressive
     alt_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.cov.pkl', 'rb'))
     sample_mu_model = None
     if sample_est_count_option:
-        sample_mu_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.cov.residual.pkl', 'rb'))
+        if conditions.shape[1]==confounders.shape[1]:
+            sample_mu_model='raw_cnt'
+        else:
+            sample_mu_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.cov.residual.pkl', 'rb'))
     results = []
     for y in ys:
         results.append(run_NB_model(y, conditions, confounders, count, null_model, alt_model, sample_mu_model, aggressive_mode))
@@ -140,9 +144,10 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, sampl
     K = z.shape[1]
     x_null=confounders.drop(confounders.columns[range(1,K-1+1)],axis=1)
     x_alt=confounders
-    alt_col_n=len(x_alt.columns)
+    x_null_col_n=x_null.shape[1]
+    x_alt_col_n=x_alt.shape[1]
     # init null model
-    null_data_dict = {'N': N, 'y': y, 'mu_raw': custom_mean(y, aggressive_mode), 'P': len(x_null.columns), 'x': x_null}
+    null_data_dict = {'N': N, 'y': y, 'mu_raw': custom_mean(y, aggressive_mode), 'P': x_null_col_n, 'x': x_null}
 
     # init alternative model
     mu_raw = []
@@ -163,32 +168,26 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, sampl
     if _count <= count and np.any(values < 0):
         return None, None, np.array(means), np.array(_vars), None
 
-    alt_data_dict = {'N': N, 'K': K, 'y': y, 'z': z, 'mu_raw': mu_raw, 'P': len(x_alt.columns), 'x': x_alt}
+    alt_data_dict = {'N': N, 'K': K, 'y': y, 'z': z, 'mu_raw': mu_raw, 'P': x_alt_col_n, 'x': x_alt}
 
     max_optim_n=50
     with suppress_stdout_stderr():
         i = 0
         while i < max_optim_n:
             try:
-                fit_null = null_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5,init={'beta':[0 for _ in range(len(x_null.columns))]})
-                fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5,init={'beta': [[0 for _ in range(K)] for _ in range(len(x_alt.columns))]})
-                if sample_mu_model!=None:
+                fit_null = null_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5,init={'beta':[0 for _ in range(x_null_col_n)]})
+                fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5,init={'beta': [[0 for _ in range(K)] for _ in range(x_alt_col_n)]})
+                if sample_mu_model!=None and sample_mu_model!='raw_cnt':
                     sample_mu_data_dict=alt_data_dict.copy()
                     sample_mu_data_dict['beta']=fit_alt['par']['beta']
                     sample_mu_data_dict['residual_sigma']=residual_sigma
                     sample_mu_data_dict['reciprocal_phi']=fit_alt['par']['reciprocal_phi']
                     sample_mu_data_dict['theta']=fit_alt['par']['theta']
                     sample_mu_data_dict['mu']=fit_alt['par']['mu']
-                    j=0
-                    while j < max_optim_n:
-                        try:
-                            fit_sample_mu=sample_mu_model.optimizing(data=sample_mu_data_dict, as_vector=False, init=0)
-                        except RuntimeError:
-                            j += 1
-                            continue
-                        break
-                    if j == max_optim_n:
-                        sample_mu_model=None
+                    try:
+                        fit_sample_mu=sample_mu_model.optimizing(data=sample_mu_data_dict, as_vector=False, init=0)
+                    except RuntimeError:
+                        fit_sample_mu=sample_mu_model.optimizing(data=sample_mu_data_dict, as_vector=False, init=0, algorithm='Newton')
             except RuntimeError:
                 i += 1
                 continue
@@ -203,8 +202,11 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, sampl
         sigmas = mus + mus * mus * reciprocal_phi
         p_value = 1 - chi2(3 * (K - 1)).cdf(2 * log_likelihood)
         est_counts=None
-        if sample_mu_model!=None:
-            est_counts=(fit_sample_mu['par']['residual'] + z*sample_mu_data_dict['mu']  + z*np.dot(confounders.drop(confounders.columns[range(1,alt_col_n)],axis=1), pandas.DataFrame(sample_mu_data_dict['beta']).drop(range(1,alt_col_n)))).sum(axis=1)
+        if sample_mu_model=='raw_cnt':
+            est_counts=y
+        elif sample_mu_model!=None:
+            est_counts=(fit_sample_mu['par']['residual'] + z*sample_mu_data_dict['mu']  + z*np.dot(confounders.drop(confounders.columns[range(1,x_alt_col_n)],axis=1), pandas.DataFrame(sample_mu_data_dict['beta']).drop(range(1,x_alt_col_n)))).sum(axis=1)
+            est_counts=np.where(est_counts<0,0,est_counts)
         return p_value, log_likelihood, mus, sigmas, est_counts
 
 
@@ -347,9 +349,9 @@ def init_alt_NB_cov_residual_model(model_dir):
         vector[K] residual[N];
     }
     model {
-    matrix[N,K] a;
+    matrix[N,K] xb;
 
-        a=x*beta;
+        xb=x*beta;
         for (n in 1:N) {
 
             vector[K] lps;
@@ -360,11 +362,11 @@ def init_alt_NB_cov_residual_model(model_dir):
 
                     residual[n]~normal(0,residual_sigma);
 
-                    if ((mu[k]+a[n,k]+residual[n][k])<=0){
+                    if ((mu[k]+xb[n,k]+residual[n][k])<=0){
                     mu_pos=0+1e-4;
                     }
                     else{
-                    mu_pos=mu[k]+a[n,k]+residual[n][k];
+                    mu_pos=mu[k]+xb[n,k]+residual[n][k];
                     }
                     lps[k] = log_sum_exp(bernoulli_lpmf(1 | theta[k]), bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi[k])));
 
@@ -375,13 +377,13 @@ def init_alt_NB_cov_residual_model(model_dir):
                 for (k in 1:K) {
                     real mu_pos;
 
-                    residual[n]~normal(0,mu[k]);
+                    residual[n]~normal(0,residual_sigma);
 
-                    if ((mu[k]+a[n,k]+residual[n][k])<=0){
+                    if ((mu[k]+xb[n,k]+residual[n][k])<=0){
                     mu_pos=0+1e-4;
                     }
                     else{
-                    mu_pos=mu[k]+a[n,k]+residual[n][k];
+                    mu_pos=mu[k]+xb[n,k]+residual[n][k];
                     }
                     lps[k] = bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi[k]));
                     lps[k] *= z[n][k];
@@ -598,16 +600,17 @@ def run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_m
     z = conditions
     K = z.shape[1]
     x_null=confounders.drop(confounders.columns[range(1,K-1+1)],axis=1)
+    x_null_col_n=x_null.shape[1]
     x_alt=confounders
-    alt_col_n=len(x_alt.columns)
+    x_alt_col_n=x_alt.shape[1]
     if aggressive_mode:
         print("aggressive_mode to be implemented in DM model, aggressive_mode has not been enabled.")
         #conc = np.sum(np.mean(y, axis=0))
         #conc_raw, conc_std = conc, np.sqrt(conc/10) + 1e-4
 
-    null_data_dict = {'N': N, 'M': M, 'y': y, 'P': len(x_null.columns), 'x': x_null, 'conc_shape': 1.0001, 'conc_rate': 1e-4}
+    null_data_dict = {'N': N, 'M': M, 'y': y, 'P': x_null_col_n, 'x': x_null, 'conc_shape': 1.0001, 'conc_rate': 1e-4}
 
-    alt_data_dict = {'N': N, 'M': M, 'y': y, 'P': alt_col_n, 'x': x_alt, 'conc_shape': 1.0001, 'conc_rate': 1e-4}
+    alt_data_dict = {'N': N, 'M': M, 'y': y, 'P': x_alt_col_n, 'x': x_alt, 'conc_shape': 1.0001, 'conc_rate': 1e-4}
 
     max_optim_n=100
     with suppress_stdout_stderr():
@@ -660,7 +663,7 @@ def run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_m
         sample_psis=None
 
         if sample_psi_model!=None:
-            lo_residuals=fit_sample_psi['par']['residual'] + np.dot(confounders.drop(confounders.columns[range(2,alt_col_n)],axis=1), beta_T[:2])
+            lo_residuals=fit_sample_psi['par']['residual'] + np.dot(confounders.drop(confounders.columns[range(2,x_alt_col_n)],axis=1), beta_T[:2])
             sample_psis=normalize( (softmax(lo_residuals.T,normalize).T * fit_alt['par']['conc']).T )
         return p_value, log_likelihood, psis, sample_psis
 
