@@ -20,7 +20,7 @@ from utils import generate_splice_files, get_splice_file_dataframe
 from utils import process_annotation, process_introns_with_annotation
 from utils import process_introns
 from utils import write_pred_intron_file, write_diff_nb_intron_file, write_diff_dm_intron_file, write_diff_dm_group_file, write_diff_dm_group_data_file
-from modelsdmfilter import NB_model, DM_model
+from models import NB_model, DM_model
 
 
 def get_arguments():

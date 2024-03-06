@@ -503,7 +503,8 @@ def get_splice_site_groups(intron_coords):
 def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, error_rate=0.05,
             method='fdr_bh', batch_size=1000, group_filter=0, aggressive_mode=False, sample_psi_option=False, residual_sigma=10):
     
-    _df = df.drop(['label'], axis=1)
+    #_df = df.drop(['label'], axis=1)
+    _df = df[df['label'] == 1].drop(['label'], axis=1)
     _df_dmfilter = df[df['label'] == 1].drop(['label'], axis=1)
     indices_dmfilter=_df_dmfilter.index.tolist()
     _index_df_dmfilter = index_df.loc[index_df['index'].isin(indices_dmfilter)]
