@@ -95,9 +95,12 @@ def NB_model(df, conditions, confounders, model_dir, num_workers=4, count=5, err
             p_value, log_likelihood, mus, sigmas, est_counts = result
             diff_intron_dict[coord] = [p_value, log_likelihood, mus, sigmas]
             pred_intron_dict[coord] = 'LO_DATA'
-            if p_value is not None and np.any(mus >= 1):
+            if p_value is not None:# and np.any(mus >= 1):
                 sig_coords.append(coord)
-                pred_intron_dict[coord] = 'OK'
+                if p_value == -1:
+                    pred_intron_dict[coord] = 'NO_OPT'
+                else:
+                    pred_intron_dict[coord] = 'OK'
             if sample_est_count_option==True:
                 est_count_dict[coord]=est_counts
 
@@ -113,10 +116,7 @@ def batch_run_NB_model(ys, conditions, confounders, model_dir, count, aggressive
     alt_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.cov.pkl', 'rb'))
     sample_mu_model = None
     if sample_est_count_option:
-        if conditions.shape[1]==confounders.shape[1]:
-            sample_mu_model='raw_cnt'
-        else:
-            sample_mu_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.cov.residual.pkl', 'rb'))
+        sample_mu_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.cov.residual.pkl', 'rb'))
     results = []
     for y in ys:
         results.append(run_NB_model(y, conditions, confounders, count, null_model, alt_model, sample_mu_model, aggressive_mode))
@@ -177,7 +177,7 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, sampl
             try:
                 fit_null = null_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5,init={'beta':[0 for _ in range(x_null_col_n)]})
                 fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5,init={'beta': [[0 for _ in range(K)] for _ in range(x_alt_col_n)]})
-                if sample_mu_model!=None and sample_mu_model!='raw_cnt':
+                if sample_mu_model!=None:
                     sample_mu_data_dict=alt_data_dict.copy()
                     sample_mu_data_dict['beta']=fit_alt['par']['beta']
                     sample_mu_data_dict['residual_sigma']=residual_sigma
@@ -194,18 +194,18 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, sampl
             break
 
     if i == max_optim_n:
-        return None, None, np.array(means), None, None
+        return -1, None, np.array(means), None, None
     else:
         log_likelihood = fit_alt['value'] - fit_null['value']
         mus = fit_alt['par']['mu']
+        if np.any(mus >= 1) ==False:
+            return None, None, np.array(means), np.array(_vars), None
         reciprocal_phi = fit_alt['par']['reciprocal_phi']
         sigmas = mus + mus * mus * reciprocal_phi
         p_value = 1 - chi2(3 * (K - 1)).cdf(2 * log_likelihood)
         est_counts=None
-        if sample_mu_model=='raw_cnt':
-            est_counts=y
-        elif sample_mu_model!=None:
-            est_counts=(fit_sample_mu['par']['residual'] + z*sample_mu_data_dict['mu']  + z*np.dot(confounders.drop(confounders.columns[range(1,x_alt_col_n)],axis=1), pandas.DataFrame(sample_mu_data_dict['beta']).drop(range(1,x_alt_col_n)))).sum(axis=1)
+        if sample_mu_model!=None:
+            est_counts=(fit_sample_mu['par']['residual'] + z*sample_mu_data_dict['mu']  + z*np.dot(confounders, pandas.DataFrame(sample_mu_data_dict['beta']))).sum(axis=1)
             est_counts=np.where(est_counts<0,0,est_counts)
         return p_value, log_likelihood, mus, sigmas, est_counts
 
@@ -217,7 +217,7 @@ def init_null_NB_cov_model(model_dir):
     int<lower=1> P;
     int<lower=0> y[N];
     real<lower=0> mu_raw;
-    matrix[N,P] x;  // New covariate matrix with P columns
+    matrix[N,P] x;  
     }
     parameters {
 	real<lower=0, upper=1> theta;
@@ -230,12 +230,13 @@ def init_null_NB_cov_model(model_dir):
 
 
     mu ~ normal(mu_raw, sqrt(mu_raw/10) + 1e-4);
-    reciprocal_phi ~ normal(0,1);
+    reciprocal_phi ~ cauchy(0,1);
 
     beta[1]~normal(0,sqrt(mu_raw) + 1e-4);
     for (p in 2:P){
         beta[p]~normal(0,sqrt(mu_raw) + 1e-4);
     }
+
     xb=x*beta;
 
     for (n in 1:N) {
@@ -271,24 +272,26 @@ def init_alt_NB_cov_model(model_dir):
         int<lower=0> y[N];
         int<lower=0> z[N, K];
         vector<lower=0>[K] mu_raw;
-    matrix[N,P] x;  // New covariate matrix with P columns
+    matrix[N,P] x; 
     }
     parameters {
         real<lower=0, upper=1> theta[K];
         vector<lower=0>[K] mu;
         vector<lower=1e-4>[K] reciprocal_phi;
-    matrix[P,K] beta;
+        matrix[P,K] beta;
     }
     model {
-    matrix[N,K] xb;
+        matrix[N,K] xb;
 
-    beta[1]~normal(0,sqrt(mu_raw) + 1e-4);
-    for (p in 2:P){
-        beta[p]~normal(0,sqrt(mu_raw) + 1e-4);
-       }
+        for (p in 1:2){
+            beta[p]~normal(0,sqrt(mu_raw) + 1e-4);
+           }
+        for (p in 3:P){
+            beta[p]~normal(0,sqrt(mu_raw) + 1e-4);
+    }
 
         mu ~ normal(mu_raw, sqrt(mu_raw/10)+1e-4);
-        reciprocal_phi ~ normal(0, 1);
+        reciprocal_phi ~ cauchy(0, 1);
 	xb=x*beta;
         for (n in 1:N) {
             vector[K] lps;
@@ -349,18 +352,19 @@ def init_alt_NB_cov_residual_model(model_dir):
         vector[K] residual[N];
     }
     model {
-    matrix[N,K] xb;
+        matrix[N,K] xb;
 
         xb=x*beta;
         for (n in 1:N) {
 
             vector[K] lps;
+            residual[n]~normal(0,10);
 
             if (y[n] == 0){
                 for (k in 1:K){
                     real mu_pos;
 
-                    residual[n]~normal(0,residual_sigma);
+
 
                     if ((mu[k]+xb[n,k]+residual[n][k])<=0){
                     mu_pos=0+1e-4;
@@ -377,7 +381,6 @@ def init_alt_NB_cov_residual_model(model_dir):
                 for (k in 1:K) {
                     real mu_pos;
 
-                    residual[n]~normal(0,residual_sigma);
 
                     if ((mu[k]+xb[n,k]+residual[n][k])<=0){
                     mu_pos=0+1e-4;
@@ -398,85 +401,6 @@ def init_alt_NB_cov_residual_model(model_dir):
     model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
     with open(file, 'wb') as f:
         pickle.dump(model, f)
-
-
-def init_null_NB_model(model_dir):
-    code = """
-    data {
-        int<lower=1> N;
-        int<lower=0> y[N];
-        real<lower=0> mu_raw;
-    }
-    parameters {
-        real<lower=0, upper=1> theta;
-        real<lower=0> mu;
-        real<lower=1e-4> reciprocal_phi;
-    }
-    model {
-        mu ~ normal(mu_raw, sqrt(mu_raw/10)+1e-4);
-        reciprocal_phi ~ cauchy(0., 5);
-        for (n in 1:N) {
-            if (y[n] == 0){
-                target += log_sum_exp(bernoulli_lpmf(1 | theta),
-                                         bernoulli_lpmf(0 | theta)
-                                         + neg_binomial_2_lpmf(y[n] | mu+1e-4, 1./reciprocal_phi));
-            }
-            else{
-                target += bernoulli_lpmf(0 | theta) + neg_binomial_2_lpmf(y[n] | mu+1e-4, 1./reciprocal_phi);
-            }
-        }
-    }
-    """
-    file = f'{model_dir}/null_NB_model.pkl'
-    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
-    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
-    with open(file, 'wb') as f:
-        pickle.dump(model, f)
-
-
-def init_alt_NB_model(model_dir):
-    code = """
-    data {
-        int<lower=1> N;
-        int<lower=1> K;
-        int<lower=0> y[N];
-        int<lower=0> z[N, K];
-        vector<lower=0>[K] mu_raw;
-    }
-    parameters {
-        real<lower=0, upper=1> theta[K];
-        vector<lower=0>[K] mu;
-        vector<lower=1e-4>[K] reciprocal_phi;
-    }
-    model {
-        mu ~ normal(mu_raw, sqrt(mu_raw/10)+1e-4);
-        reciprocal_phi ~ cauchy(0., 5);
-        for (n in 1:N) {
-            vector[K] lps;
-            if (y[n] == 0){
-                for (k in 1:K){
-                    lps[k] = log_sum_exp(bernoulli_lpmf(1 | theta[k]),
-                                         bernoulli_lpmf(0 | theta[k])
-                                         + neg_binomial_2_lpmf(y[n] | mu[k]+1e-4, 1./reciprocal_phi[k]));
-                    lps[k] *= z[n][k];
-                }
-            }
-            else{
-                for (k in 1:K) {
-                    lps[k] = bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu[k]+1e-4, 1./reciprocal_phi[k]);
-                    lps[k] *= z[n][k];
-                }
-            }
-            target += lps;
-        }
-    }
-    """
-    file = f'{model_dir}/alt_NB_model.pkl'
-    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
-    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
-    with open(file, 'wb') as f:
-        pickle.dump(model, f)
-
 
 ###############################################################################
 def dm_add_q_values(diff_dm_group_dict, error_rate, method):
@@ -503,8 +427,8 @@ def get_splice_site_groups(intron_coords):
 def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, error_rate=0.05,
             method='fdr_bh', batch_size=1000, group_filter=0, aggressive_mode=False, sample_psi_option=False, residual_sigma=10):
     
-    #_df = df.drop(['label'], axis=1)
     _df = df[df['label'] == 1].drop(['label'], axis=1)
+    #  per sample psis
     _df_dmfilter = df[df['label'] == 1].drop(['label'], axis=1)
     indices_dmfilter=_df_dmfilter.index.tolist()
     _index_df_dmfilter = index_df.loc[index_df['index'].isin(indices_dmfilter)]
@@ -870,76 +794,3 @@ def init_DM_beta_reparam_cov_residual_model(model_dir):
     with open(file, 'wb') as f:
         pickle.dump(model, f)
 
-def init_null_DM_model(model_dir):
-    code = """
-    functions {
-        real dirichlet_multinomial_lpmf(int[] y, vector alpha) {
-            real alpha_plus = sum(alpha);
-            return lgamma(alpha_plus) + sum(lgamma(alpha + to_vector(y)))
-                        - lgamma(alpha_plus + sum(y)) - sum(lgamma(alpha));
-        }
-    }
-    data {
-        int<lower=1> N;
-        int<lower=1> M;
-        int<lower=0> y[N, M];
-        real<lower=0> conc_mu;
-        real<lower=0> conc_std;
-    }
-    parameters {
-        simplex[M] alpha;
-        real<lower=0> conc;
-    }
-    model {
-        conc ~ normal(conc_mu, conc_std);
-        for (n in 1:N) {
-            target += dirichlet_multinomial_lpmf(y[n] | conc * alpha);
-        }
-    }
-    """
-    file = f'{model_dir}/null_DM_model.pkl'
-    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
-    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
-    with open(file, 'wb') as f:
-        pickle.dump(model, f)
-
-
-def init_alt_DM_model(model_dir):
-    code = """
-    functions {
-        real dirichlet_multinomial_lpmf(int[] y, vector alpha) {
-            real alpha_plus = sum(alpha);
-            return lgamma(alpha_plus) + sum(lgamma(alpha + to_vector(y)))
-                        - lgamma(alpha_plus + sum(y)) - sum(lgamma(alpha));
-        }
-    }
-    data {
-        int<lower=1> N;
-        int<lower=1> M;
-        int<lower=1> K;
-        int<lower=0> y[N, M];
-        int<lower=0> z[N, K];
-        real<lower=0> conc_mu;
-        real<lower=0> conc_std;
-    }
-    parameters {
-        simplex[M] alpha[K];
-        real<lower=0> conc;
-    }
-    model {
-        conc ~ normal(conc_mu, conc_std);
-        for (n in 1:N) {
-            vector[K] lps;
-            for (k in 1:K){
-                lps[k] = dirichlet_multinomial_lpmf(y[n] | conc * alpha[k]);
-                lps[k] *= z[n][k];
-            }
-            target += lps;
-        }
-    }
-    """
-    file = f'{model_dir}/alt_DM_model.pkl'
-    extra_compile_args = ['-pthread', '-DSTAN_THREADS']
-    model = pystan.StanModel(model_code=code, extra_compile_args=extra_compile_args)
-    with open(file, 'wb') as f:
-        pickle.dump(model, f)

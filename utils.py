@@ -290,9 +290,11 @@ def write_pred_intron_file(df, conditions, labels, pred_intron_dict, out_dir, es
             _list += [','.join(np.take(y, i).astype(str).tolist()) for i in indices]
             if est_count_dict!=None:
                 est_y = est_count_rows[i]
-                if None not in est_y:
+                if est_y.count(None) == len(est_y):
+                    _list += ['None' for i in indices]
+                else:
                     est_y = np.around(est_y, 6)
-                _list += [','.join(np.take(est_y, i).astype(str).tolist()) for i in indices]
+                    _list += [','.join(np.take(est_y, i).astype(str).tolist()) for i in indices]
             f.write('\t'.join(_list) + '\n')
 
 
@@ -309,10 +311,10 @@ def write_diff_nb_intron_file(labels, diff_nb_intron_dict, out_dir, anno_info=No
         f.write('\t'.join(_list) + '\n')
         for coord, value in diff_nb_intron_dict.items():
             p_value, log_likelihood, mus, sigmas, q_value = value
-            str_p_value = f"{p_value:.6g}" if p_value is not None else 'NA'
+            str_p_value = 'NA' if (p_value is None or p_value == -1) else f"{p_value:.6g}"
             str_q_value = f"{q_value:.6g}" if q_value is not None else 'NA'
             str_log_likelihood = f"{log_likelihood:.6g}" if log_likelihood is not None else 'NA'
-            status = 'TEST' if p_value is not None else 'NO_TEST'
+            status = 'NO_TEST' if (p_value is None or p_value == -1) else 'TEST'
             gene_names = get_gene_names(anno_info, coord) if anno_info else '.'
             _chr, strand, start, end = coord
             _list = [_chr, str(start), str(end), strand, gene_names, status, str_log_likelihood, str_p_value, str_q_value]
