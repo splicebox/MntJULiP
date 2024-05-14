@@ -63,7 +63,7 @@ The required packages may be installed using conda:
 cd MnJULiP
 conda env create -f mntjulip_cov.yml
 #  run setup.py to install MntJULiP and all the required packages
-module load cmake
+conda activate mj-cov
 python3 setup.py install  
 ```
 

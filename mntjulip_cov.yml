@@ -15,6 +15,7 @@ dependencies:
   - ca-certificates=2022.12.7=ha878542_0
   - cairo=1.16.0=h19f5f5c_2
   - certifi=2022.12.7=pyhd8ed1ab_0
+  - cython=0.29.32
   - expat=2.4.9=h6a678d5_0
   - font-ttf-dejavu-sans-mono=2.37=hd3eb1b0_0
   - font-ttf-inconsolata=2.001=hcb22688_0
