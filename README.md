@@ -5,7 +5,7 @@ MntJULiP is a program for comprehensively and accurately quantifying splicing di
 Described in:
 
 - Yang G, Sabunciyan S, and Florea L (2022). Comprehensive and scalable quantification of splicing differences with MntJULiP. *Genome Biol* [23:195](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-022-02767-y). [[Suppl. data](http://ccb.jhu.edu/software/MntJULiP/), [Suppl. scripts](https://github.com/splicebox/MntJULiP/blob/master/MntJULiP_scripts.tar.gz)]
-- Lui WW, Yang G, He Z and Florea L (2024). MntJULiP and Jutils: Differential splicing analysis of RNA-seq data with covariates. *Submitted.* [[Suppl. data](http://ccb.jhu.edu/software/MntJULiP/), [Suppl. scripts](https://github.com/splicebox/MntJULiP/blob/master/MntJULiP_cov_scripts.tar.gz), [Preprint](https://www.biorxiv.org/content/10.1101/2024.01.01.573825v1)]
+- Lui WW, Yang G, He Z and Florea L (2024). MntJULiP and Jutils: Differential splicing analysis of RNA-seq data with covariates. *Submitted.* [[Suppl. data](http://ccb.jhu.edu/software/MntJULiP/), [Suppl. scripts](https://github.com/splicebox/MntJULiP/blob/master-covariate/MntJULiP_cov_scripts.tar.gz), [Preprint](https://www.biorxiv.org/content/10.1101/2024.01.01.573825v1)]
 
 
 For the original version of MntJULiP, please refer to the [original](https://github.com/splicebox/MntJULiP/tree/master-original) branch.
