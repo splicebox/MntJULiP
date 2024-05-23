@@ -89,6 +89,12 @@ optional arguments:
   -h, --help            show this help message and exit
 ```
 
+Test run MntJULiP with test data:
+```
+cd test_data
+python ../run.py --splice-list splice.4F1M.cov 
+```
+
 Here is an example to run MntJULiP with a set of alignment files and the GENCODE annotation:
 ```
 ANNO_FILE="gencode.v22.annotation.gtf"
