@@ -1,0 +1,11 @@
+sample	condition	sex
+sample_1.splice.gz	0	M
+sample_2.splice.gz	0	M
+sample_3.splice.gz	0	M
+sample_4.splice.gz	0	M
+sample_6.splice.gz	0	F
+sample_11.splice.gz	1	M
+sample_16.splice.gz	1	F
+sample_17.splice.gz	1	F
+sample_18.splice.gz	1	F
+sample_19.splice.gz	1	F

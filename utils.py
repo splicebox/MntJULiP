@@ -26,6 +26,7 @@ def get_splice_file_dataframe(list_file, data_dir):
             os.remove(data_dir / file)
     for i, file in enumerate(splice_file_df['sample']):
         if os.path.isfile(file) and os.path.getsize(file) > 0:
+            file = os.path.realpath(file)
             if file.endswith(".gz"):
                 os.symlink(file, data_dir / f"sample_{i+1}.splice.gz")
             else:
