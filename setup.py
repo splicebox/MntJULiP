@@ -25,7 +25,7 @@ def read(fname):
 
 setup(
     name='mntjulip',
-    version='2.0',
+    version='1.5',
     author="Wui Wang Lui & Guangyu Yang & Liliana Florea",
     author_email="wlui3@jhu.edu",
     description = ("MntJULiP is a program for comprehensive and accurate quantification of splicing differences from RNA-seq data"),
