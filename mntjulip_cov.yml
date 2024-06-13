@@ -15,6 +15,7 @@ dependencies:
   - ca-certificates=2022.12.7=ha878542_0
   - cairo=1.16.0=h19f5f5c_2
   - certifi=2022.12.7=pyhd8ed1ab_0
+  - cmake
   - cython=0.29.32
   - expat=2.4.9=h6a678d5_0
   - font-ttf-dejavu-sans-mono=2.37=hd3eb1b0_0
@@ -84,7 +85,6 @@ dependencies:
   - pcre=8.45=h295c915_0
   - pip=22.1.2=py37h06a4308_0
   - pixman=0.40.0=h7f8727e_1
-  - pysam=0.21.0=py37hee149a5_0
   - python=3.7.13=h12debd9_0
   - python_abi=3.7=2_cp37m
   - readline=8.1.2=h7f8727e_1
