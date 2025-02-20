@@ -59,7 +59,7 @@ def nb_add_q_values(diff_intron_dict, error_rate, method):
 ###############################################################################
 ## Zero inflated Negative Binomial model
 def NB_model(df, conditions, confounders, model_dir, num_workers=4, count=5, error_rate=0.05,
-             method='fdr_bh', batch_size=500, aggressive_mode=False, sample_est_count_option=False, residual_sigma=10):
+             method='fdr_bh', batch_size=500, aggressive_mode=False, sample_est_count_option=False, residual_sigma=10, seed=1):
     diff_intron_dict = {}
     pred_intron_dict = {}
     if sample_est_count_option==True:
@@ -78,13 +78,13 @@ def NB_model(df, conditions, confounders, model_dir, num_workers=4, count=5, err
         ys.append(np.array(row_list[1:-1], dtype=np.int))
         coords.append(coord)
         if i > 0 and i % batch_size == 0:
-            delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, confounders, model_dir, count, aggressive_mode, sample_est_count_option, residual_sigma))
+            delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, confounders, model_dir, count, aggressive_mode, sample_est_count_option, residual_sigma, seed))
             coords_batches.append(coords)
             coords = []
             ys = []
 
     if len(ys) > 0:
-        delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, confounders, model_dir, count, aggressive_mode, sample_est_count_option, residual_sigma))
+        delayed_results.append(delayed(batch_run_NB_model)(ys, conditions, confounders, model_dir, count, aggressive_mode, sample_est_count_option, residual_sigma, seed))
         coords_batches.append(coords)
 
     results_batches = list(compute(*delayed_results, traverse=False, num_workers=num_workers, scheduler="processes"))
@@ -111,7 +111,7 @@ def NB_model(df, conditions, confounders, model_dir, num_workers=4, count=5, err
 
     return diff_intron_dict, pred_intron_dict, est_count_dict
 
-def batch_run_NB_model(ys, conditions, confounders, model_dir, count, aggressive_mode, sample_est_count_option, residual_sigma=10):
+def batch_run_NB_model(ys, conditions, confounders, model_dir, count, aggressive_mode, sample_est_count_option, residual_sigma=10, seed=1):
     null_model = pickle.load(open(Path(model_dir) / 'null_NB_model.cov.pkl', 'rb'))
     alt_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.cov.pkl', 'rb'))
     sample_mu_model = None
@@ -119,7 +119,7 @@ def batch_run_NB_model(ys, conditions, confounders, model_dir, count, aggressive
         sample_mu_model = pickle.load(open(Path(model_dir) / 'alt_NB_model.cov.residual.pkl', 'rb'))
     results = []
     for y in ys:
-        results.append(run_NB_model(y, conditions, confounders, count, null_model, alt_model, sample_mu_model, aggressive_mode))
+        results.append(run_NB_model(y, conditions, confounders, count, null_model, alt_model, sample_mu_model, aggressive_mode, seed))
     return results
 
 
@@ -137,7 +137,7 @@ def custom_count(quantiles, means, aggressive_mode):
         return max(means)
 
 
-def run_NB_model(y, conditions, confounders, count, null_model, alt_model, sample_mu_model, aggressive_mode, residual_sigma=10):
+def run_NB_model(y, conditions, confounders, count, null_model, alt_model, sample_mu_model, aggressive_mode, residual_sigma=10, seed=1):
 
     N = y.shape[0]
     z = conditions
@@ -169,14 +169,13 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, sampl
         return None, None, np.array(means), np.array(_vars), None
 
     alt_data_dict = {'N': N, 'K': K, 'y': y, 'z': z, 'mu_raw': mu_raw, 'P': x_alt_col_n, 'x': x_alt}
-
     max_optim_n=50
     with suppress_stdout_stderr():
         i = 0
         while i < max_optim_n:
             try:
-                fit_null = null_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5,init={'beta':[0 for _ in range(x_null_col_n)]})
-                fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5,init={'beta': [[0 for _ in range(K)] for _ in range(x_alt_col_n)]})
+                fit_null = null_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5,init={'beta':[0 for _ in range(x_null_col_n)]},seed=seed+i)
+                fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5,init={'beta': [[0 for _ in range(K)] for _ in range(x_alt_col_n)]},seed=seed+i)
                 if sample_mu_model!=None:
                     sample_mu_data_dict=alt_data_dict.copy()
                     sample_mu_data_dict['beta']=fit_alt['par']['beta']
@@ -185,9 +184,9 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, sampl
                     sample_mu_data_dict['theta']=fit_alt['par']['theta']
                     sample_mu_data_dict['mu']=fit_alt['par']['mu']
                     try:
-                        fit_sample_mu=sample_mu_model.optimizing(data=sample_mu_data_dict, as_vector=False, init=0)
+                        fit_sample_mu=sample_mu_model.optimizing(data=sample_mu_data_dict, as_vector=False, init=0,seed=seed+i)
                     except RuntimeError:
-                        fit_sample_mu=sample_mu_model.optimizing(data=sample_mu_data_dict, as_vector=False, init=0, algorithm='Newton')
+                        fit_sample_mu=sample_mu_model.optimizing(data=sample_mu_data_dict, as_vector=False, init=0, algorithm='Newton',seed=seed+i)
             except RuntimeError:
                 i += 1
                 continue
@@ -205,6 +204,7 @@ def run_NB_model(y, conditions, confounders, count, null_model, alt_model, sampl
         p_value = 1 - chi2(3 * (K - 1)).cdf(2 * log_likelihood)
         est_counts=None
         if sample_mu_model!=None:
+
             est_counts=(fit_sample_mu['par']['residual'] + z*sample_mu_data_dict['mu']  + z*np.dot(confounders, pandas.DataFrame(sample_mu_data_dict['beta']))).sum(axis=1)
             est_counts=np.where(est_counts<0,0,est_counts)
         return p_value, log_likelihood, mus, sigmas, est_counts
@@ -240,13 +240,7 @@ def init_null_NB_cov_model(model_dir):
     xb=x*beta;
 
     for (n in 1:N) {
-        real mu_pos;
-        if ((mu+xb[n])<=0){
-        mu_pos=0+1e-4;
-        }
-        else{
-        mu_pos=mu+xb[n];
-        }
+        real mu_pos = fmax(1e-4, mu + xb[n]);
         if (y[n] == 0) {
                 target += log_sum_exp(bernoulli_lpmf(1 | theta),bernoulli_lpmf(0 | theta) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi)));
 
@@ -297,26 +291,14 @@ def init_alt_NB_cov_model(model_dir):
             vector[K] lps;
             if (y[n] == 0){
                 for (k in 1:K){
-                    real mu_pos;
-                    if ((mu[k]+xb[n,k])<=0){
-                    mu_pos=0+1e-4;
-                    }
-                    else{
-                    mu_pos=mu[k]+xb[n,k];
-                    }
+                    real mu_pos = fmax(1e-4, mu[k] + xb[n, k]);
                     lps[k] = log_sum_exp(bernoulli_lpmf(1 | theta[k]), bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi[k])));
                     lps[k] *= z[n][k];
                 }
             }
             else{
                 for (k in 1:K) {
-                    real mu_pos;
-                    if ((mu[k]+xb[n,k])<=0){
-                    mu_pos=0+1e-4;
-                    }
-                    else{
-                    mu_pos=mu[k]+xb[n,k];
-                    }
+                    real mu_pos = fmax(1e-4, mu[k] + xb[n, k]);
                     lps[k] = bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi[k]));
                     lps[k] *= z[n][k];
                 }
@@ -358,36 +340,22 @@ def init_alt_NB_cov_residual_model(model_dir):
         for (n in 1:N) {
 
             vector[K] lps;
-            residual[n]~normal(0,10);
+
 
             if (y[n] == 0){
                 for (k in 1:K){
                     real mu_pos;
-
-
-
-                    if ((mu[k]+xb[n,k]+residual[n][k])<=0){
-                    mu_pos=0+1e-4;
-                    }
-                    else{
-                    mu_pos=mu[k]+xb[n,k]+residual[n][k];
-                    }
+                    residual[n]~normal(0,residual_sigma);
+                    mu_pos = fmax(1e-4, mu[k] + xb[n, k]+residual[n][k]);
                     lps[k] = log_sum_exp(bernoulli_lpmf(1 | theta[k]), bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi[k])));
-
                     lps[k] *= z[n][k];
                 }
             }
             else{
                 for (k in 1:K) {
                     real mu_pos;
-
-
-                    if ((mu[k]+xb[n,k]+residual[n][k])<=0){
-                    mu_pos=0+1e-4;
-                    }
-                    else{
-                    mu_pos=mu[k]+xb[n,k]+residual[n][k];
-                    }
+                    residual[n]~normal(0,residual_sigma);
+                    mu_pos = fmax(1e-4, mu[k] + xb[n, k]+residual[n][k]);
                     lps[k] = bernoulli_lpmf(0 | theta[k]) + neg_binomial_2_lpmf(y[n] | mu_pos, 1./sqrt(reciprocal_phi[k]));
                     lps[k] *= z[n][k];
                 }
@@ -425,7 +393,7 @@ def get_splice_site_groups(intron_coords):
 
 ## Dirichlet Multinomial model
 def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, error_rate=0.05,
-            method='fdr_bh', batch_size=1000, group_filter=0, aggressive_mode=False, sample_psi_option=False, residual_sigma=10):
+            method='fdr_bh', batch_size=1000, group_filter=0, aggressive_mode=False, sample_psi_option=False, residual_sigma=10, seed=1):
     
     _df = df[df['label'] == 1].drop(['label'], axis=1)
     #  per sample psis
@@ -469,7 +437,7 @@ def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, er
                         groups.append((f"g{i+1:06d}", (_chr, strand, group[0], group[1])))
                         coords.append(intron_coords)
                         if i > 0 and i % batch_size == 0:
-                            delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, confounders,model_dir, aggressive_mode, sample_psi_option, residual_sigma))
+                            delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, confounders,model_dir, aggressive_mode, sample_psi_option, residual_sigma, seed))
                             groups_batches.append(groups)
                             coords_batches.append(coords)
                             groups = []
@@ -478,7 +446,7 @@ def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, er
                         i += 1
 
     if len(ys) > 0:
-        delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, confounders,model_dir, aggressive_mode, sample_psi_option, residual_sigma))
+        delayed_results.append(delayed(batch_run_DM_model)(ys, conditions, confounders,model_dir, aggressive_mode, sample_psi_option, residual_sigma, seed))
         groups_batches.append(groups)
         coords_batches.append(coords)
 
@@ -507,7 +475,7 @@ def DM_model(df, index_df, conditions, confounders, model_dir, num_workers=4, er
     diff_dm_group_dict = dm_add_q_values(diff_dm_group_dict, error_rate, method)
     return diff_dm_intron_dict, diff_dm_group_dict, diff_dm_sample_psi_dict
 
-def batch_run_DM_model(ys, conditions, confounders, model_dir, aggressive_mode, sample_psi_option=False, residual_sigma=10):
+def batch_run_DM_model(ys, conditions, confounders, model_dir, aggressive_mode, sample_psi_option=False, residual_sigma=10, seed=1):
     null_model = None
     alt_model = pickle.load(open(Path(model_dir) / 'DM_model.beta_reparam.cov.pkl', 'rb'))
     sample_psi_model = None
@@ -516,11 +484,11 @@ def batch_run_DM_model(ys, conditions, confounders, model_dir, aggressive_mode, 
 
     results = []
     for y in ys:
-        results.append(run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_model, aggressive_mode, residual_sigma))
+        results.append(run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_model, aggressive_mode, residual_sigma, seed))
 
     return results
 
-def run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_model, aggressive_mode, residual_sigma=10):
+def run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_model, aggressive_mode, residual_sigma=10, seed=1):
     N, M = y.shape
     z = conditions
     K = z.shape[1]
@@ -542,8 +510,8 @@ def run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_m
         i = 0
         while i < max_optim_n:
             try:
-                fit_null = alt_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5)
-                fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5)
+                fit_null = alt_model.optimizing(data=null_data_dict, as_vector=False, init_alpha=1e-5,seed=seed+i)
+                fit_alt = alt_model.optimizing(data=alt_data_dict, as_vector=False, init_alpha=1e-5,seed=seed+i)
                 beta=(fit_alt['par']['beta_raw']-1/fit_alt['par']['beta_raw'].shape[1]).T * fit_alt['par']['beta_scale']
                 if sample_psi_model!=None:
                     sample_psi_data_dict=alt_data_dict.copy()
@@ -553,7 +521,7 @@ def run_DM_model(y, conditions, confounders, null_model, alt_model, sample_psi_m
                     j=0
                     while j < max_optim_n:
                         try:
-                            fit_sample_psi=sample_psi_model.optimizing(data=sample_psi_data_dict, as_vector=False,  verbose=True, init=0)
+                            fit_sample_psi=sample_psi_model.optimizing(data=sample_psi_data_dict, as_vector=False,  verbose=True, init=0,seed=seed+i)
                         except RuntimeError:
                             j += 1
                             continue

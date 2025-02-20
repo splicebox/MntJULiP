@@ -6,6 +6,7 @@ import os
 import sys
 import shutil
 import textwrap
+import random
 
 
 logging.basicConfig(format='mnt-JULiP: %(asctime)s: %(message)s', datefmt='%d-%b-%y %H:%M:%S')
@@ -36,6 +37,7 @@ def get_arguments():
     optional_args.add_argument('--anno-file', type=str, default='', help='annotation file in GTF format.')
     optional_args.add_argument('--out-dir', type=str, default='./out', help='output folder to store the results and temporary files. (default: ./out)')
     optional_args.add_argument('--num-threads', type=int, default=4, help='number of CPU cores use to run the program. (default: 4)')
+    optional_args.add_argument('--num', type=int, default=1, help='number of the starting seed.')
     optional_args.add_argument('-v', '--version', action='version', version=version)
     optional_args.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='show this help message and exit.')
 
@@ -54,6 +56,8 @@ def get_arguments():
                         help='set MnutJULiP to aggressive mode for highly dispersed data (e.g. cancer data).')
     advanced_args.add_argument('--raw-counts-only', action='store_true', default=False,
                         help='output of raw counts only.')
+    advanced_args.add_argument('--random-seed', action='store_true', default=False,
+            help='Random seed for pystan model optimization (default: false).')
     advanced_args.add_argument('--method', type=str, default='fdr_bh',
                         help=textwrap.dedent('''\
     method used for testing and adjustment of p-values (default: 'fdr_bh')
@@ -96,6 +100,10 @@ def main():
     sample_psi_option, sample_est_count_option = True, True
     if args.raw_counts_only:
         sample_psi_option, sample_est_count_option = False, False
+    if args.random_seed==True:
+        seed=random.randint(0, sys.maxsize)
+    else:
+        seed=args.num
     
 
 
@@ -133,7 +141,7 @@ def main():
     start_time = time.time()
     diff_nb_intron_dict, pred_intron_dict, est_count_dict = NB_model(df, conditions, confounders, model_dir,
                                              num_workers=num_threads, count=count, error_rate=error_rate,
-                                             method=method, batch_size=batch_size, aggressive_mode=aggressive_mode, sample_est_count_option=sample_est_count_option)
+                                             method=method, batch_size=batch_size, aggressive_mode=aggressive_mode, sample_est_count_option=sample_est_count_option, seed=seed)
     logging.info(f'Finished! Took {time.time() - start_time:0.2f} seconds.')
 
     logging.info('Fitting Dirichlet Multinomial models ...')
@@ -141,7 +149,7 @@ def main():
     diff_dm_intron_dict, diff_dm_group_dict, diff_dm_sample_psi_dict = DM_model(df, index_df, conditions, confounders, model_dir,
                                                         num_workers=num_threads, error_rate=error_rate,
                                                         method=method, batch_size=batch_size, group_filter=group_filter,
-                                                        aggressive_mode=aggressive_mode, sample_psi_option=sample_psi_option)
+                                                        aggressive_mode=aggressive_mode, sample_psi_option=sample_psi_option, seed=seed)
     logging.info(f'Finished! Took {time.time() - start_time:0.2f} seconds.')
 
     logging.info('Writing results ...')
