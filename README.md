@@ -23,7 +23,7 @@ This program is free software: you can redistribute it and/or modify it under th
 - [Usage](#usage)
 - [Input/Output](#inputoutput)
 - [Visualization](#visualization)
-- [Support and Education](#support)
+- [Support and Coursera Education](#support)
 
 ### <a name="what-is-mntjulip"></a> What is MntJULiP?
 MntJULiP is a high-performance Python package for comprehensive and accurate quantification of splicing differences from RNA-seq data. It uses Bayesian mixture models to detect changes in splicing ratios (*differential splicing ratio*, DSR) and in absolute splicing levels (*differential splicing abundance*, DSA). Its statistical underpinnings include a Dirichlet multinomial mixture model, to test for differences in the splicing ratio, and a zero-inflated negative binomial mixture model, to test for differential splicing abundance. MntJULiP works at the level of introns, or splice junctions, and therefore it is assembly-free, and can be used with or without a reference annotation. MntJULiP can perform multi-way comparisons, which may be desirable for complex and time-series experiments. Additionally, it can model confounders such as age, sex, BMI and others, and removes their biases from the data to allow for accurate comparisons. MntJULiP is fully scalable, and can work with data sets from a few to hundred or thousands of RNA-seq samples. 
