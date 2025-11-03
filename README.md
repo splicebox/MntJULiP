@@ -4,7 +4,7 @@ MntJULiP is a program for comprehensively and accurately quantifying splicing di
 
 Described in:
 
-- Lui WW, Yang G, He Z and Florea L (2024). MntJULiP and Jutils: Differential splicing analysis of RNA-seq data with covariates. *NAR Genom Bioinfo.* [7{4):lqaf140](https://doi.org/10.1093/nargab/lqaf140) [[Suppl. data](http://ccb.jhu.edu/software/MntJULiP/), [Suppl. scripts](https://github.com/splicebox/MntJULiP/blob/master-covariate/MntJULiP_cov_scripts.tar.gz), [Full_text](https://academic.oup.com/nargab/article/7/4/lqaf140/8313458?searchresult=1)]
+- Lui WW, Yang G, He Z and Florea L (2025). MntJULiP and Jutils: Differential splicing analysis of RNA-seq data with covariates. *NAR Genom Bioinfo.* [7{4):lqaf140](https://doi.org/10.1093/nargab/lqaf140) [[Suppl. data](http://ccb.jhu.edu/software/MntJULiP/), [Suppl. scripts](https://github.com/splicebox/MntJULiP/blob/master-covariate/MntJULiP_cov_scripts.tar.gz), [Full_text](https://academic.oup.com/nargab/article/7/4/lqaf140/8313458?searchresult=1)]
 - Yang G, Sabunciyan S, and Florea L (2022). Comprehensive and scalable quantification of splicing differences with MntJULiP. *Genome Biol* [23:195](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-022-02767-y). [[Suppl. data](http://ccb.jhu.edu/software/MntJULiP/), [Suppl. scripts](https://github.com/splicebox/MntJULiP/blob/master/MntJULiP_scripts.tar.gz)]
 
 
